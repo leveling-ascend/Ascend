@@ -5,12 +5,13 @@ import { getFirestore } from "firebase/firestore";
 // (Firebase console → Project settings → General → Your apps → SDK setup and configuration).
 // This should be a *separate* Firebase project from your Life RPG app's project.
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyDlTinKtLQio86jSa47ILkbggnNXr8-GWg",
+  authDomain: "ascend-dc1d0.firebaseapp.com",
+  projectId: "ascend-dc1d0",
+  storageBucket: "ascend-dc1d0.firebasestorage.app",
+  messagingSenderId: "229839647072",
+  appId: "1:229839647072:web:e4c5c85592cea4b921ae05",
+  measurementId: "G-YXEFVYQXHV"
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
