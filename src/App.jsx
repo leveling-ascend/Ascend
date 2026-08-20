@@ -4,31 +4,32 @@ import { db, ASCEND_COLLECTION } from "./firebase.js";
 
 /* =================================================================
    ASCEND: The Takeover — React port
-   Same logic + UI as the original vanilla-JS PWA, rebuilt as a
-   single-file React functional component (hooks, CSS custom
-   properties, no build-time CSS framework) to match the app's
-   tech stack.
 
-   Sync: the whole app state (config/achievements/days/plans/
-   penaltyLog) lives as one Firestore document, kept live with
-   onSnapshot and written back with a debounced setDoc — same
-   shape of sync as the Life RPG app, just on ASCEND's own
-   Firebase project/collection. The PIN-based owner/view-only
-   lock stays exactly as it was in the original app (client-side
-   only, not Firebase auth). localStorage is kept as an offline
-   cache so the app still works (read-only feel) without a
-   network connection.
+   NOTE ON THIS REVISION
+   This is a large rework covering: flattened daily-task lists,
+   an editable-past-days calendar (Monday-start, fixed campaign
+   start of 17 Aug 2026), a Skills achievement panel, a rebuilt
+   scoring model, a single-login owner/viewer flow with an
+   activity log, animated (non-emoji) theme swatches, ringtone
+   alarms, and a "Final Ascent" S+ completion path. The scoring
+   weights were rebalanced so the total still adds up to exactly
+   100 points — see the comments beside each score function for
+   the breakdown.
 ================================================================= */
 
 const SYNC_ENABLED = true;
 const MAIN_DOC_ID = "main";
 
 /* ============================= CONSTANTS ============================= */
+const CAMPAIGN_START = "2026-08-17"; // Monday, 17 Aug 2026, IST — fixed, no longer editable
 const CAMPAIGN_DAYS = 231;
 const TOTAL_DAILY_XP_MAX = CAMPAIGN_DAYS * 100;
 const TOTAL_CHAPTERS = 80;
+const ARC_MAX = 4; // was 5 — 1 pt/arc was carved out to fund the Weight Loss goal
+const PAID_LEAVE_MAX = 7;
+const LEAVE_MAX = 27;
 
-const RANK_NAMES = ["E", "D", "C", "B", "A", "S"];
+const RANK_NAMES = ["E", "D", "C", "B", "A", "S", "S+"];
 const RANK_COLORS = [
   ["#4c5164", "#6d7386"],
   ["#7a5636", "#b0824f"],
@@ -36,11 +37,13 @@ const RANK_COLORS = [
   ["#0fae9e", "#5be0d0"],
   ["#8b3fe0", "#c08bff"],
   ["#e8b400", "#ffe873"],
+  ["#fff7d6", "#ffd700"],
 ];
 function tierFor(score) {
   return Math.min(5, Math.floor(clamp(score, 0, 100) / 18));
 }
-function rankFor(score) {
+function rankFor(score, finalAscent) {
+  if (finalAscent) return { name: "S+", tier: 6, glow: RANK_COLORS[6] };
   const t = tierFor(score);
   return { name: RANK_NAMES[t], tier: t, glow: RANK_COLORS[t] };
 }
@@ -54,67 +57,77 @@ const HARD_MODE_TASKS = [
 ];
 
 const THEMES = [
-  { id: "catmeme", label: "Cat Glitter", ic: "🐱" },
-  { id: "dark", label: "Obsidian", ic: "🌑" },
-  { id: "light", label: "Daylight", ic: "☀️" },
-  { id: "cyber", label: "Cyber", ic: "⚡" },
-  { id: "forest", label: "Forest", ic: "🌿" },
+  { id: "catmeme", label: "Cat Glitter" },
+  { id: "dark", label: "Obsidian" },
+  { id: "light", label: "Daylight" },
+  { id: "cyber", label: "Cyber" },
+  { id: "forest", label: "Forest" },
 ];
 
 const ACCENTS = ["#7c5cff", "#ff5c8a", "#3ddc84", "#ffb14d", "#4fd0ff", "#ff5c5c", "#c08bff"];
 
+const RINGTONES = [
+  { id: "beep", label: "Classic Beep" },
+  { id: "chime", label: "Chime" },
+  { id: "siren", label: "Siren" },
+];
+
+/* -- daily tasks: Strength, Intellect, Discipline (Skills moved to achievements) -- */
 const DEFAULT_TASKS = {
   strength: {
-    label: "Strength & Fitness", icon: "💪", max: 35,
+    label: "Strength & Fitness", icon: "💪", max: 30,
     tasks: [
       { id: "walk", name: "4 km walk", xp: 10 },
       { id: "exercise", name: "Exercise", xp: 12 },
-      { id: "protein", name: "80g protein", xp: 8 },
-      { id: "water", name: "Adequate water", xp: 5 },
+      { id: "protein", name: "60g protein", xp: 8 },
     ],
   },
   intellect: {
     label: "Intellect", icon: "🧠", max: 40,
     tasks: [
-      { id: "study", name: "NEET study / practice", xp: 30 },
-      { id: "revision", name: "Revision / questions", xp: 10 },
+      { id: "study", name: "Study", xp: 20 },
+      { id: "revision", name: "Revision", xp: 10 },
+      { id: "questions", name: "Questions", xp: 10 },
     ],
   },
   discipline: {
-    label: "Discipline", icon: "🔥", max: 11,
+    label: "Discipline", icon: "🔥", max: 30,
     tasks: [
-      { id: "wake", name: "Wake at 7:00 AM", xp: 8 },
-      { id: "review", name: "Daily completion / review", xp: 3 },
-    ],
-  },
-  skills: {
-    label: "Skills", icon: "✨", max: 14,
-    tasks: [
+      { id: "water", name: "Adequate water", xp: 8 },
+      { id: "wake", name: "Wake at 8:00 AM", xp: 8 },
       { id: "skincare", name: "Skincare", xp: 4 },
       { id: "haircare", name: "Hair care", xp: 3 },
-      { id: "shower", name: "Shower", xp: 3 },
       { id: "brush", name: "Brush teeth twice", xp: 4 },
+      { id: "shower", name: "Shower", xp: 3 },
     ],
   },
 };
 
+/* -- achievements: chapters + arcs (25 pts) + milestones/skills (15 pts) -- */
 const DEFAULT_ACH = {
   chapters: 0,
   arcI: 0,
   arcII: 0,
   arcIII: 0,
   milestones: [false, false, false, false, false, false],
-  driving: 0,
+  driving: false,
   bookLHN: false,
   bookAH: false,
+  bookNew: false,
+  weightLoss: false,
+  finalAscent: false,
 };
+
+const DEFAULT_SKILL_XP = { driving: 3, bookLHN: 2, bookAH: 2, bookNew: 2 };
+const DEFAULT_BOOK_NAMES = { bookLHN: "The Laws of Human Nature", bookAH: "Atomic Habits", bookNew: "New Book" };
 
 const DEFAULT_CONFIG = {
   theme: "catmeme", accent: "#ff5fa8", threshold: 70,
-  startDate: todayStr(), started: false,
-  pin: "", ownerUnlocked: true,
-  alarmTime: "", lastAlarmFired: "",
-  lastRankTier: 0, celebrationUntil: 0,
+  startDate: CAMPAIGN_START, started: false,
+  pinSet: false, pin: "", viewerPassword: "", loginLog: [],
+  alarmTime: "", alarmRingtone: "beep", lastAlarmFired: "",
+  lastRankTier: 0, celebrationUntil: 0, gameCompleted: false,
+  weightLossXP: 3, skillXP: DEFAULT_SKILL_XP, bookNames: DEFAULT_BOOK_NAMES,
   tasks: DEFAULT_TASKS,
 };
 
@@ -141,6 +154,9 @@ function clamp(v, lo, hi) {
 function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
+function fmtDate(d) {
+  return new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
 
 /* ============================= LOCAL STORAGE ============================= */
 const LS_KEYS = {
@@ -149,6 +165,7 @@ const LS_KEYS = {
   days: "ascend:days",
   plans: "ascend:plans",
   penaltyLog: "ascend:penaltylog",
+  auth: "ascend:auth",
 };
 function lsGet(key, fallback) {
   try {
@@ -165,6 +182,8 @@ function lsSet(key, value) {
 }
 
 /* ============================= SCORING (pure fns) ============================= */
+// Daily tasks max out at 60 pts of the final 100 (ratio of everything ever logged
+// vs. the theoretical max for the whole 231-day campaign).
 function dayXP(days, taskDefs, dateStr) {
   const rec = days[dateStr];
   if (!rec) return 0;
@@ -187,21 +206,32 @@ function dailyDisciplineScore(days, taskDefs) {
 function chaptersScore(achievements) {
   return clamp(achievements.chapters, 0, TOTAL_CHAPTERS) * (10 / TOTAL_CHAPTERS);
 }
-function achievementScore(achievements) {
+// Achievements: chapters(10) + 3 arcs(4 each = 12) + weight loss(3) = 25 pts
+function achievementScore(config, achievements) {
   return (
     chaptersScore(achievements) +
-    clamp(achievements.arcI, 0, 5) +
-    clamp(achievements.arcII, 0, 5) +
-    clamp(achievements.arcIII, 0, 5)
+    clamp(achievements.arcI, 0, ARC_MAX) +
+    clamp(achievements.arcII, 0, ARC_MAX) +
+    clamp(achievements.arcIII, 0, ARC_MAX) +
+    (achievements.weightLoss ? (config.weightLossXP ?? 3) : 0)
   );
 }
-function milestoneScore(achievements) {
+// Milestones(6) + driving + 3 books = 15 pts
+function milestoneScore(config, achievements) {
+  const skillXP = config.skillXP || DEFAULT_SKILL_XP;
   const ms = achievements.milestones.filter(Boolean).length;
-  return ms + clamp(achievements.driving, 0, 3) + (achievements.bookLHN ? 3 : 0) + (achievements.bookAH ? 3 : 0);
+  return (
+    ms +
+    (achievements.driving ? skillXP.driving : 0) +
+    (achievements.bookLHN ? skillXP.bookLHN : 0) +
+    (achievements.bookAH ? skillXP.bookAH : 0) +
+    (achievements.bookNew ? skillXP.bookNew : 0)
+  );
 }
-function finalScore(days, taskDefs, achievements) {
+function finalScore(days, config, achievements) {
+  if (achievements.finalAscent) return 100;
   return clamp(
-    dailyDisciplineScore(days, taskDefs) + achievementScore(achievements) + milestoneScore(achievements),
+    dailyDisciplineScore(days, config.tasks) + achievementScore(config, achievements) + milestoneScore(config, achievements),
     0,
     100
   );
@@ -223,7 +253,7 @@ function weekMissCount(days, taskDefs, config, weekNum) {
     const d = addDays(start, i);
     if (d > t) continue;
     const rec = days[d];
-    if (rec && rec.leave) continue;
+    if (rec && (rec.leave || rec.leaveOrdinary)) continue;
     const xp = dayXP(days, taskDefs, d);
     if (xp < config.threshold) misses++;
   }
@@ -237,16 +267,24 @@ function penaltyForMisses(n) {
   if (n === 4) return { level: 4, name: "P4 — Boss", desc: "Lose one reward coupon + full leisure restriction next day." };
   return { level: 5, name: "P5 — Hard Mode", desc: "Lose one paid-leave day + 3 days of Hard Mode." };
 }
-function rebalance(tasksArr, targetMax) {
-  const sum = tasksArr.reduce((s, t) => s + t.xp, 0);
-  if (sum === 0 || tasksArr.length === 0) return tasksArr;
-  let running = 0;
-  return tasksArr.map((t, i) => {
-    if (i === tasksArr.length - 1) return { ...t, xp: targetMax - running };
-    const xp = Math.max(1, Math.round((t.xp / sum) * targetMax));
-    running += xp;
-    return { ...t, xp };
-  });
+// Flattened list of every daily task, plus the Weight Loss goal (a one-time
+// achievement, but shown inline in the same checklist per spec — no aspect
+// names shown next to any of them).
+function flatDailyTasks(config) {
+  const out = [];
+  for (const cat of Object.values(config.tasks)) {
+    for (const t of cat.tasks) out.push({ ...t, special: null });
+  }
+  out.push({ id: "weightLoss", name: "Weight loss goal (all 3 arcs)", xp: config.weightLossXP ?? 3, special: "weightLoss" });
+  return out;
+}
+function categoryCampaignPct(days, cat) {
+  let earned = 0;
+  for (const d of Object.values(days)) {
+    for (const t of cat.tasks) if (d.tasksDone && d.tasksDone[t.id]) earned += t.xp;
+  }
+  const max = cat.max * CAMPAIGN_DAYS;
+  return max ? clamp(earned / max, 0, 1) : 0;
 }
 
 /* ============================= STYLES ============================= */
@@ -254,7 +292,7 @@ const STYLES = `
 .ascend-app{
   --bg:#0a0c14; --bg2:#11141f; --card:#161a28; --card2:#1d2233;
   --line:rgba(255,255,255,0.08); --text:#eef0f6; --sub:#8890a6; --sub2:#5c6580;
-  --accent:#7c5cff; --accent2:#a78bfa; --green:#3ddc84; --yellow:#ffcc4d; --red:#ff5c5c;
+  --accent:#7c5cff; --accent2:#a78bfa; --green:#3ddc84; --yellow:#ffcc4d; --red:#ff5c5c; --blue:#3d8bff;
   --radius:18px; --radius-sm:12px;
   --shadow:0 8px 30px rgba(0,0,0,0.35);
   --font: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -279,8 +317,16 @@ const STYLES = `
   --line:rgba(255,90,180,0.25); --text:#5a1440; --sub:#a84a86; --sub2:#c98cb4;
   --shadow:0 8px 26px rgba(255,100,180,0.18);
 }
+.ascend-app[data-celebration="true"]{
+  --bg:#1a1200; --bg2:#231800; --card:#2a1d00; --card2:#3a2900;
+  --line:rgba(255,215,0,0.35); --text:#fff8dc; --sub:#ffd76a; --sub2:#e0b840;
+  --accent:#ffd700; --accent2:#fff2a8;
+  --shadow:0 0 40px rgba(255,215,0,0.3);
+}
 .ascend-app{box-sizing:border-box; width:100%; min-height:100vh; background:var(--bg); color:var(--text);
   font-family:var(--font); transition:background .4s ease,color .4s ease; overscroll-behavior-y:none; position:relative;}
+.ascend-app[data-celebration="true"]{background:linear-gradient(135deg,#1a1200,#2a1d00,#3a2900,#1a1200); background-size:300% 300%; animation:ascendGold 6s ease infinite;}
+@keyframes ascendGold{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
 .ascend-app *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
 .ascend-app button,.ascend-app input,.ascend-app textarea,.ascend-app select{font-family:inherit; color:inherit;}
 .ascend-app .app{max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative; overflow:hidden;}
@@ -289,6 +335,7 @@ const STYLES = `
 
 .ascend-app .sparkle-layer{position:fixed; inset:0; pointer-events:none; z-index:5; overflow:hidden; display:none;}
 .ascend-app[data-theme="catmeme"] .sparkle-layer{display:block;}
+.ascend-app[data-celebration="true"] .sparkle-layer{display:block;}
 .ascend-app .sparkle-layer span{position:absolute; bottom:-40px; font-size:20px; opacity:.85; animation:ascendFloatUp linear infinite;}
 @keyframes ascendFloatUp{0%{transform:translateY(0) rotate(0deg); opacity:0;}10%{opacity:.9;}100%{transform:translateY(-110vh) rotate(360deg); opacity:0;}}
 .ascend-app[data-theme="catmeme"] .card,.ascend-app[data-theme="catmeme"] .aspect-mini,.ascend-app[data-theme="catmeme"] .rank-core{
@@ -305,7 +352,7 @@ const STYLES = `
   backdrop-filter:blur(6px);}
 .ascend-app .hud-top{display:flex; align-items:center; gap:14px;}
 .ascend-app .rank-core{position:relative; width:74px; height:74px; flex:none; border-radius:50%;
-  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:22px; letter-spacing:.5px;
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:20px; letter-spacing:.5px;
   background:radial-gradient(circle at 35% 30%, var(--rc2), var(--rc1) 70%);
   box-shadow:0 0 0 3px var(--card), 0 0 24px 2px var(--rc1), inset 0 0 14px rgba(255,255,255,0.25);
   color:#0a0c14; transition:all .6s ease;}
@@ -318,9 +365,10 @@ const STYLES = `
 .ascend-app .hud-meta{display:flex; justify-content:space-between; margin-top:6px; font-size:11.5px; color:var(--sub);}
 
 .ascend-app .celebrate{margin-top:12px; border-radius:16px; padding:14px; text-align:center; font-weight:800;
-  background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; position:relative; overflow:hidden;}
+  background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#1a1200; position:relative; overflow:hidden;}
 .ascend-app .celebrate .pop{position:absolute; font-size:18px; animation:ascendPop 1.6s ease-in-out infinite;}
 @keyframes ascendPop{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-6px) scale(1.15);}}
+.ascend-app .celebrate.grand{font-size:16px; letter-spacing:.5px;}
 
 .ascend-app .tabbar{position:sticky; bottom:0; z-index:30; display:flex; background:var(--card); border-top:1px solid var(--line);
   padding:8px 6px calc(8px + env(safe-area-inset-bottom)); gap:2px; max-width:520px; margin:0 auto; width:100%;}
@@ -333,11 +381,11 @@ const STYLES = `
   margin:22px 2px 10px; display:flex; align-items:center; justify-content:space-between;}
 .ascend-app .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:12px;}
 
-.ascend-app .trio{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
-.ascend-app .trio-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 8px; text-align:center; cursor:pointer;}
-.ascend-app .trio-card .ic{font-size:18px;}
-.ascend-app .trio-card b{display:block; font-size:15px; margin-top:2px;}
-.ascend-app .trio-card span{font-size:9.5px; color:var(--sub); text-transform:uppercase; letter-spacing:.5px;}
+.ascend-app .trio{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
+.ascend-app .trio-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 5px; text-align:center; cursor:pointer;}
+.ascend-app .trio-card .ic{font-size:16px;}
+.ascend-app .trio-card b{display:block; font-size:14px; margin-top:2px;}
+.ascend-app .trio-card span{font-size:9px; color:var(--sub); text-transform:uppercase; letter-spacing:.5px;}
 .ascend-app .compact-detail{margin-top:10px;}
 
 .ascend-app .aspect-strip{display:flex; justify-content:space-between; gap:8px; margin-top:6px;}
@@ -362,29 +410,35 @@ const STYLES = `
 .ascend-app .task-name{flex:1; font-size:14px; font-weight:600;}
 .ascend-app .task-xp{font-size:12px; color:var(--sub); font-weight:700;}
 .ascend-app .task-row.done .task-name{color:var(--sub); text-decoration:line-through;}
+.ascend-app .task-row.static .task-name{font-weight:500;}
 
 .ascend-app .field-row{display:flex; gap:8px; margin-top:10px;}
 .ascend-app .field-row input,.ascend-app .field-row textarea{flex:1; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px;}
 .ascend-app textarea{width:100%; min-height:70px; resize:vertical; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; margin-top:8px;}
 .ascend-app .btn{background:var(--accent); color:#fff; border:none; padding:10px 16px; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer;}
+.ascend-app[data-celebration="true"] .btn{color:#1a1200;}
 .ascend-app .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--text);}
 .ascend-app .btn.sm{padding:7px 12px; font-size:12px;}
 .ascend-app .btn:disabled{opacity:.4; cursor:not-allowed;}
 .ascend-app .btn.big{width:100%; padding:16px; font-size:16px; border-radius:16px;}
+.ascend-app .btn.gold{background:linear-gradient(135deg,#ffd700,#fff2a8); color:#1a1200;}
 .ascend-app .progress-line{display:flex; align-items:center; gap:10px; margin-top:6px;}
 .ascend-app .progress-line .track{flex:1; height:10px; border-radius:6px; background:var(--card2); overflow:hidden;}
 .ascend-app .progress-line .fill{height:100%; background:linear-gradient(90deg,var(--green),#8ff0b0);}
 .ascend-app .small-muted{font-size:11.5px; color:var(--sub);}
 
+.ascend-app .day-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; font-size:12.5px;}
 .ascend-app .week-nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
 .ascend-app .week-nav b{font-size:14px;}
 .ascend-app .dots{display:flex; justify-content:space-between;}
-.ascend-app .day-dot{display:flex; flex-direction:column; align-items:center; gap:6px; font-size:10px; color:var(--sub);}
+.ascend-app .day-dot{display:flex; flex-direction:column; align-items:center; gap:6px; font-size:10px; color:var(--sub); cursor:pointer;}
 .ascend-app .dot{width:20px; height:20px; border-radius:50%; background:var(--card2); border:2px solid var(--line);}
 .ascend-app .dot.g{background:var(--green); border-color:var(--green);}
 .ascend-app .dot.y{background:var(--yellow); border-color:var(--yellow);}
 .ascend-app .dot.r{background:var(--red); border-color:var(--red);}
+.ascend-app .dot.b{background:var(--blue); border-color:var(--blue);}
 .ascend-app .dot.today{box-shadow:0 0 0 2px var(--accent);}
+.ascend-app .dot.selected{box-shadow:0 0 0 2px var(--text);}
 
 .ascend-app .ach-row{margin-bottom:16px;}
 .ascend-app .ach-head{display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:6px;}
@@ -405,10 +459,14 @@ const STYLES = `
 .ascend-app .pen-level4,.ascend-app .pen-level5{background:color-mix(in srgb,var(--red) 24%,var(--card));}
 .ascend-app .pen-list .task-row{align-items:flex-start;}
 .ascend-app .badge{font-size:10px; font-weight:800; padding:3px 8px; border-radius:20px; background:var(--card2); color:var(--sub);}
+.ascend-app .pen-meter{display:flex; gap:4px; margin-top:10px;}
+.ascend-app .pen-meter .seg{flex:1; height:8px; border-radius:4px; background:var(--card2); border:1px solid var(--line);}
+.ascend-app .pen-meter .seg.on{background:var(--red);}
 
 .ascend-app .swatch-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;}
-.ascend-app .theme-swatch{width:56px; height:56px; border-radius:16px; border:2px solid var(--line); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:20px; background:var(--card2);}
+.ascend-app .theme-swatch{width:60px; height:60px; border-radius:16px; border:2px solid var(--line); cursor:pointer; display:flex; align-items:center; justify-content:center; background:var(--card2); overflow:hidden; position:relative;}
 .ascend-app .theme-swatch.sel{border-color:var(--accent); transform:scale(1.06);}
+.ascend-app .theme-swatch span.tlabel{position:absolute; bottom:1px; left:0; right:0; font-size:7px; text-align:center; font-weight:700; background:rgba(0,0,0,0.35); color:#fff; padding:1px 0;}
 .ascend-app .swatch{width:34px; height:34px; border-radius:50%; border:2px solid var(--line); cursor:pointer;}
 .ascend-app .swatch.sel{border-color:var(--text); transform:scale(1.1);}
 .ascend-app .toggle-row{display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line);}
@@ -424,9 +482,27 @@ const STYLES = `
 .ascend-app .lockbar{display:flex; align-items:center; gap:8px; background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;}
 .ascend-app .hidden{display:none !important;}
 .ascend-app .arc-desc{font-size:12px; color:var(--sub); margin-bottom:8px;}
+.ascend-app .log-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:12px;}
+.ascend-app .log-row:last-child{border-bottom:none;}
 
 .ascend-app .start-gate{display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:50px 20px;}
 .ascend-app .start-gate .big-badge{width:110px; height:110px; border-radius:50%; background:radial-gradient(circle at 35% 30%,var(--accent2),var(--accent)); box-shadow:0 0 40px 6px var(--accent); margin-bottom:18px; display:flex; align-items:center; justify-content:center; font-size:40px;}
+
+/* -- theme swatch animated icons (no emoji) -- */
+.ti-cat{position:relative; width:100%; height:100%;}
+.ti-cat .spark{position:absolute; width:5px; height:5px; border-radius:50%; background:#ff5fa8; animation:tiTwinkle 1.4s ease-in-out infinite;}
+@keyframes tiTwinkle{0%,100%{opacity:.25; transform:scale(.6);}50%{opacity:1; transform:scale(1.2);}}
+.ti-moon{width:26px; height:26px; border-radius:50%; background:#dfe3ff; box-shadow:-8px 0 0 2px #6d7386 inset; animation:tiGlow 2.4s ease-in-out infinite;}
+@keyframes tiGlow{0%,100%{box-shadow:-8px 0 0 2px #6d7386 inset,0 0 6px 1px rgba(180,190,255,0.4);}50%{box-shadow:-8px 0 0 2px #6d7386 inset,0 0 16px 4px rgba(180,190,255,0.8);}}
+.ti-sun{width:22px; height:22px; border-radius:50%; background:#ffcc4d; animation:tiSpin 6s linear infinite; box-shadow:0 0 10px 2px rgba(255,204,77,0.6);}
+@keyframes tiSpin{to{transform:rotate(360deg);}}
+.ti-sun::before{content:''; position:absolute; inset:-10px; border-radius:50%; background:
+  repeating-conic-gradient(#ffcc4d 0deg 8deg, transparent 8deg 45deg);
+  z-index:-1; animation:tiSpin 6s linear infinite reverse;}
+.ti-cyber{width:24px; height:24px; background:#00eaff; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); animation:tiFlicker 1.1s steps(2) infinite;}
+@keyframes tiFlicker{0%,100%{opacity:1;}45%{opacity:.3;}60%{opacity:1;}}
+.ti-leaf{width:20px; height:28px; background:#3ddc84; border-radius:0 100% 0 100%; transform-origin:bottom center; animation:tiSway 2.2s ease-in-out infinite;}
+@keyframes tiSway{0%,100%{transform:rotate(-12deg);}50%{transform:rotate(12deg);}}
 `;
 
 /* ============================= SMALL UI HELPERS ============================= */
@@ -455,6 +531,15 @@ function TaskRow({ id, name, xp, done, onToggle, disabled }) {
         {done ? "✓" : ""}
       </div>
       <div className="task-name">{name}</div>
+      {xp !== null && <div className="task-xp">{xp} XP</div>}
+    </div>
+  );
+}
+
+function TaskRowStatic({ name, xp }) {
+  return (
+    <div className="task-row static">
+      <div className="task-name">{name}</div>
       <div className="task-xp">{xp} XP</div>
     </div>
   );
@@ -478,6 +563,25 @@ function SwitchToggle({ on, onClick, disabled }) {
   return <div className={`switch ${on ? "on" : ""}`} onClick={disabled ? undefined : onClick} />;
 }
 
+/* -- animated (non-emoji) theme icons -- */
+function ThemeIcon({ id }) {
+  if (id === "catmeme") {
+    return (
+      <div className="ti-cat">
+        <div className="spark" style={{ left: 6, top: 8, animationDelay: "0s" }} />
+        <div className="spark" style={{ left: 30, top: 14, animationDelay: ".3s" }} />
+        <div className="spark" style={{ left: 16, top: 30, animationDelay: ".6s" }} />
+        <div className="spark" style={{ left: 38, top: 34, animationDelay: ".9s" }} />
+      </div>
+    );
+  }
+  if (id === "dark") return <div className="ti-moon" />;
+  if (id === "light") return <div className="ti-sun" />;
+  if (id === "cyber") return <div className="ti-cyber" />;
+  if (id === "forest") return <div className="ti-leaf" />;
+  return null;
+}
+
 /* ============================= HUD ============================= */
 const SYNC_LABEL = {
   synced: "☁️ Synced",
@@ -486,13 +590,15 @@ const SYNC_LABEL = {
   offline: "📴 Offline — saved on this device",
   error: "⚠️ Sync error — saved on this device",
 };
-function Hud({ score, rank, celebrating, syncStatus }) {
+function Hud({ score, rank, celebrating, syncStatus, showBadge, gameCompleted }) {
   return (
     <div className="hud">
       <div className="hud-top">
-        <div className="rank-core" style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1] }}>
-          {rank.name}
-        </div>
+        {showBadge && (
+          <div className="rank-core" style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1] }}>
+            {rank.name}
+          </div>
+        )}
         <div className="hud-mid">
           <div className="hud-label">Final Campaign Score</div>
           <div className="hud-score">
@@ -508,7 +614,17 @@ function Hud({ score, rank, celebrating, syncStatus }) {
           </div>
         </div>
       </div>
-      {celebrating && (
+      {gameCompleted && (
+        <div className="celebrate grand">
+          <span className="pop" style={{ left: "8%", top: 6 }}>🏆</span>
+          <span className="pop" style={{ right: "8%", top: 6, animationDelay: ".3s" }}>🏆</span>
+          <div>Game completed successfully</div>
+          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9, marginTop: 2 }}>
+            Rank S+ reached. The Final Ascent is complete.
+          </div>
+        </div>
+      )}
+      {!gameCompleted && celebrating && (
         <div className="celebrate">
           <span className="pop" style={{ left: "8%", top: 6 }}>🎉</span>
           <span className="pop" style={{ right: "8%", top: 6, animationDelay: ".3s" }}>🎊</span>
@@ -522,6 +638,107 @@ function Hud({ score, rank, celebrating, syncStatus }) {
   );
 }
 
+/* ============================= LOGIN GATE ============================= */
+function LoginGate({ config, setConfig, onAuthed }) {
+  const [mode, setMode] = useState(config.pinSet ? "choose" : "setup");
+  const [pinDraft, setPinDraft] = useState("");
+  const [pwDraft, setPwDraft] = useState("");
+  const [err, setErr] = useState("");
+
+  const logAndEnter = (r) => {
+    const entry = { role: r, ts: new Date().toISOString() };
+    setConfig((prev) => ({ ...prev, loginLog: [...(prev.loginLog || []).slice(-49), entry] }));
+    onAuthed(r);
+  };
+
+  if (mode === "setup") {
+    return (
+      <div className="start-gate">
+        <div className="big-badge">🔐</div>
+        <h2 style={{ margin: "0 0 8px" }}>Set up ASCEND</h2>
+        <p className="small-muted" style={{ maxWidth: 280 }}>
+          Nobody has logged in yet. The first person to set a PIN becomes the campaign owner.
+        </p>
+        <div className="field-row" style={{ maxWidth: 260, width: "100%" }}>
+          <input type="password" placeholder="Choose an owner PIN" value={pinDraft} onChange={(e) => setPinDraft(e.target.value)} />
+        </div>
+        <button
+          className="btn big" style={{ maxWidth: 260, marginTop: 12 }}
+          onClick={() => {
+            if (!pinDraft.trim()) { setErr("Enter a PIN first."); return; }
+            setConfig((prev) => ({ ...prev, pinSet: true, pin: pinDraft }));
+            logAndEnter("owner");
+          }}
+        >
+          Become Owner
+        </button>
+        {err && <div className="small-muted" style={{ color: "var(--red)", marginTop: 8 }}>{err}</div>}
+      </div>
+    );
+  }
+
+  if (mode === "choose") {
+    return (
+      <div className="start-gate">
+        <div className="big-badge">🔐</div>
+        <h2 style={{ margin: "0 0 8px" }}>Log in</h2>
+        <p className="small-muted" style={{ maxWidth: 280, marginBottom: 14 }}>Are you the owner, or viewing?</p>
+        <button className="btn big" style={{ maxWidth: 260, marginBottom: 10 }} onClick={() => setMode("pin")}>Owner</button>
+        <button className="btn ghost big" style={{ maxWidth: 260 }} onClick={() => setMode("pw")}>Viewer</button>
+      </div>
+    );
+  }
+
+  if (mode === "pin") {
+    return (
+      <div className="start-gate">
+        <div className="big-badge">🔐</div>
+        <h2 style={{ margin: "0 0 8px" }}>Owner PIN</h2>
+        <div className="field-row" style={{ maxWidth: 260, width: "100%" }}>
+          <input type="password" placeholder="PIN" value={pinDraft} onChange={(e) => setPinDraft(e.target.value)} />
+        </div>
+        <button
+          className="btn big" style={{ maxWidth: 260, marginTop: 12 }}
+          onClick={() => {
+            if (pinDraft === config.pin) logAndEnter("owner");
+            else setErr("Wrong PIN.");
+          }}
+        >
+          Unlock
+        </button>
+        {err && <div className="small-muted" style={{ color: "var(--red)", marginTop: 8 }}>{err}</div>}
+      </div>
+    );
+  }
+
+  // viewer password
+  return (
+    <div className="start-gate">
+      <div className="big-badge">🔐</div>
+      <h2 style={{ margin: "0 0 8px" }}>Viewer Password</h2>
+      {!config.viewerPassword ? (
+        <p className="small-muted" style={{ maxWidth: 280 }}>The owner hasn't set a viewer password yet.</p>
+      ) : (
+        <>
+          <div className="field-row" style={{ maxWidth: 260, width: "100%" }}>
+            <input type="password" placeholder="Viewer password" value={pwDraft} onChange={(e) => setPwDraft(e.target.value)} />
+          </div>
+          <button
+            className="btn big" style={{ maxWidth: 260, marginTop: 12 }}
+            onClick={() => {
+              if (pwDraft === config.viewerPassword) logAndEnter("viewer");
+              else setErr("Wrong password.");
+            }}
+          >
+            Enter (view only)
+          </button>
+          {err && <div className="small-muted" style={{ color: "var(--red)", marginTop: 8 }}>{err}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ============================= START GATE ============================= */
 function StartGate({ isOwner, onStart }) {
   return (
@@ -529,7 +746,7 @@ function StartGate({ isOwner, onStart }) {
       <div className="big-badge">🏔️</div>
       <h2 style={{ margin: "0 0 8px" }}>ASCEND: The Takeover</h2>
       <p className="small-muted" style={{ maxWidth: 280 }}>
-        33 weeks. 231 days. Your campaign hasn't begun yet.
+        33 weeks. 231 days. Campaign start: 17 Aug 2026.
       </p>
       {isOwner ? (
         <button className="btn big" style={{ maxWidth: 260, marginTop: 18 }} onClick={onStart}>
@@ -543,47 +760,70 @@ function StartGate({ isOwner, onStart }) {
 }
 
 /* ============================= HOME TAB ============================= */
-function HomeTab({ config, setConfig, days, setDays, plans, setPlans, isOwner, onAfterTaskToggle }) {
+function HomeTab({ config, setConfig, achievements, setAchievements, days, setDays, plans, setPlans, isOwner, onAfterTaskToggle }) {
   const [openAspect, setOpenAspect] = useState(null);
-  const [compactExpanded, setCompactExpanded] = useState({ diet: false, planner: false });
+  const [compactExpanded, setCompactExpanded] = useState({ protein: false, planner: false, review: false });
+  const [selectedDate, setSelectedDate] = useState(todayStr());
 
   const t = todayStr();
-  const rec = days[t] || { tasksDone: {}, protein: 0, studyLog: "", questions: 0, leave: false, hardMode: {} };
+  const sel = selectedDate;
+  const rec = days[sel] || { tasksDone: {}, protein: 0, studyLog: "", questions: 0, leave: false, leaveOrdinary: false, hardMode: {} };
 
   const [proteinDraft, setProteinDraft] = useState(rec.protein || "");
   const [studyDraft, setStudyDraft] = useState(rec.studyLog || "");
   const [questionsDraft, setQuestionsDraft] = useState(rec.questions || "");
   const [plannerDraft, setPlannerDraft] = useState(plans[addDays(t, 1)] || "");
 
+  useEffect(() => {
+    const r = days[sel] || {};
+    setProteinDraft(r.protein || "");
+    setStudyDraft(r.studyLog || "");
+    setQuestionsDraft(r.questions || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel]);
+
   const updateRec = useCallback(
     (patch) => {
-      setDays((prev) => ({ ...prev, [t]: { ...(prev[t] || rec), ...patch } }));
+      setDays((prev) => ({ ...prev, [sel]: { ...(prev[sel] || rec), ...patch } }));
     },
-    [t, rec, setDays]
+    [sel, rec, setDays]
   );
 
-  const toggleTask = (catKey, taskId) => {
+  const toggleTask = (taskId) => {
     if (!isOwner) return;
-    const current = days[t] || { tasksDone: {} };
+    if (taskId === "weightLoss") {
+      setAchievements((prev) => ({ ...prev, weightLoss: !prev.weightLoss }));
+      onAfterTaskToggle();
+      return;
+    }
+    const current = days[sel] || { tasksDone: {} };
     const nextDone = { ...(current.tasksDone || {}), [taskId]: !current.tasksDone?.[taskId] };
-    setDays((prev) => ({ ...prev, [t]: { ...(prev[t] || rec), tasksDone: nextDone } }));
+    setDays((prev) => ({ ...prev, [sel]: { ...(prev[sel] || rec), tasksDone: nextDone } }));
     onAfterTaskToggle();
   };
 
-  const proteinPct = clamp((rec.protein || 0) / 80, 0, 1);
+  const proteinPct = clamp((rec.protein || 0) / 60, 0, 1);
   const plannerText = plans[addDays(t, 1)] || "";
   const plannerCount = plannerText.trim() ? plannerText.trim().split(/\n+/).filter(Boolean).length : 0;
 
-  const weekN = currentWeek(config);
+  const weekN = clamp(weekOf(sel, config.startDate), 1, 33);
   const wStart = weekStartDate(config.startDate, weekN);
+  const paidLeaveCount = Object.values(days).filter((d) => d.leave).length;
+  const leaveCount = Object.values(days).filter((d) => d.leaveOrdinary).length;
+
+  const dailyTasks = flatDailyTasks(config);
+  const penaltyActive = config.__penaltyLevel > 0;
+
+  // Monday-first day order for the week strip
+  const dow = ["M", "T", "W", "T", "F", "S", "S"];
 
   return (
     <>
       <div className="trio">
-        <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, diet: !s.diet }))}>
+        <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, protein: !s.protein }))}>
           <div className="ic">🍗</div>
           <b>{rec.protein || 0}g</b>
-          <span>Diet</span>
+          <span>Protein</span>
         </div>
         <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, planner: !s.planner }))}>
           <div className="ic">📝</div>
@@ -592,14 +832,19 @@ function HomeTab({ config, setConfig, days, setDays, plans, setPlans, isOwner, o
         </div>
         <div className="trio-card" onClick={() => document.getElementById("aspect-detail")?.scrollIntoView({ behavior: "smooth" })}>
           <div className="ic">⚡</div>
-          <b>{dayXP(days, config.tasks, t)}</b>
-          <span>Today XP</span>
+          <b>{dayXP(days, config.tasks, sel)}</b>
+          <span>XP</span>
+        </div>
+        <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, review: !s.review }))}>
+          <div className="ic">🗒️</div>
+          <b>{(rec.studyLog ? 1 : 0) + (rec.questions ? 1 : 0)}</b>
+          <span>Review</span>
         </div>
       </div>
 
-      {compactExpanded.diet && (
+      {compactExpanded.protein && (
         <div className="card compact-detail">
-          <div className="small-muted">Protein target: 80g</div>
+          <div className="small-muted">Protein target: 60g</div>
           <div className="progress-line">
             <div className="track"><div className="fill" style={{ width: `${proteinPct * 100}%` }} /></div>
             <b>{rec.protein || 0}g</b>
@@ -610,24 +855,6 @@ function HomeTab({ config, setConfig, days, setDays, plans, setPlans, isOwner, o
               onChange={(e) => setProteinDraft(e.target.value)}
             />
             <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ protein: Number(proteinDraft) || 0 })}>
-              Log
-            </button>
-          </div>
-          <div className="small-muted" style={{ marginTop: 10 }}>What did you study today?</div>
-          <textarea
-            placeholder="e.g. Physics — Rotational Motion" disabled={!isOwner}
-            value={studyDraft} onChange={(e) => setStudyDraft(e.target.value)}
-          />
-          <div style={{ textAlign: "right", marginTop: 6 }}>
-            <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ studyLog: studyDraft })}>Save</button>
-          </div>
-          <div className="small-muted" style={{ marginTop: 10 }}>Questions done today</div>
-          <div className="field-row">
-            <input
-              type="number" placeholder="No. of questions" value={questionsDraft} disabled={!isOwner}
-              onChange={(e) => setQuestionsDraft(e.target.value)}
-            />
-            <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ questions: Number(questionsDraft) || 0 })}>
               Log
             </button>
           </div>
@@ -652,6 +879,29 @@ function HomeTab({ config, setConfig, days, setDays, plans, setPlans, isOwner, o
         </div>
       )}
 
+      {compactExpanded.review && (
+        <div className="card compact-detail">
+          <div className="small-muted">What did you study on {fmtDate(sel)}?</div>
+          <textarea
+            placeholder="e.g. Physics — Rotational Motion" disabled={!isOwner}
+            value={studyDraft} onChange={(e) => setStudyDraft(e.target.value)}
+          />
+          <div style={{ textAlign: "right", marginTop: 6 }}>
+            <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ studyLog: studyDraft })}>Save</button>
+          </div>
+          <div className="small-muted" style={{ marginTop: 10 }}>Questions done</div>
+          <div className="field-row">
+            <input
+              type="number" placeholder="No. of questions" value={questionsDraft} disabled={!isOwner}
+              onChange={(e) => setQuestionsDraft(e.target.value)}
+            />
+            <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ questions: Number(questionsDraft) || 0 })}>
+              Log
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="section-title">Week {weekN} Calendar</div>
       <div className="card">
         <div className="week-nav">
@@ -666,21 +916,37 @@ function HomeTab({ config, setConfig, days, setDays, plans, setPlans, isOwner, o
             let cls = "";
             if (d > t) cls = "";
             else if (dr && dr.leave) cls = "y";
+            else if (dr && dr.leaveOrdinary) cls = "b";
             else if (dr) cls = dayXP(days, config.tasks, d) >= config.threshold ? "g" : "r";
             else cls = d < t ? "r" : "";
             return (
-              <div className="day-dot" key={d}>
-                <div className={`dot ${cls} ${d === t ? "today" : ""}`} />
-                {["S", "M", "T", "W", "T", "F", "S"][i]}
+              <div className="day-dot" key={d} onClick={() => { if (d <= t) setSelectedDate(d); }}>
+                <div className={`dot ${cls} ${d === t ? "today" : ""} ${d === sel ? "selected" : ""}`} />
+                {dow[i]}
               </div>
             );
           })}
         </div>
-        <div className="small-muted" style={{ marginTop: 10 }}>🟢 sufficient XP · 🟡 leave day · 🔴 insufficient XP</div>
+        <div className="small-muted" style={{ marginTop: 10 }}>🟢 sufficient XP · 🟡 paid leave · 🔵 leave · 🔴 insufficient XP</div>
+        {sel !== t && (
+          <div className="day-header" style={{ marginTop: 10 }}>
+            <span className="small-muted">Editing {fmtDate(sel)}</span>
+            <button className="btn ghost sm" onClick={() => setSelectedDate(t)}>Back to today</button>
+          </div>
+        )}
         {isOwner && (
-          <div style={{ textAlign: "right", marginTop: 10 }}>
-            <button className="btn ghost sm" onClick={() => updateRec({ leave: !rec.leave })}>
-              {rec.leave ? "Undo leave for today" : "Mark today as paid leave"}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <button className="btn ghost sm" onClick={() => updateRec({ leave: !rec.leave, leaveOrdinary: rec.leave ? rec.leaveOrdinary : false })}>
+              {rec.leave ? "Undo paid leave" : `Mark paid leave (${paidLeaveCount}/${PAID_LEAVE_MAX})`}
+            </button>
+            <button
+              className="btn ghost sm"
+              onClick={() => {
+                if (!rec.leaveOrdinary && leaveCount >= LEAVE_MAX) { alert(`All ${LEAVE_MAX} leave days have been used.`); return; }
+                updateRec({ leaveOrdinary: !rec.leaveOrdinary, leave: rec.leaveOrdinary ? rec.leave : false });
+              }}
+            >
+              {rec.leaveOrdinary ? "Undo leave" : `Mark leave (${leaveCount}/${LEAVE_MAX})`}
             </button>
           </div>
         )}
@@ -688,25 +954,36 @@ function HomeTab({ config, setConfig, days, setDays, plans, setPlans, isOwner, o
 
       <div className="section-title">Daily Tasks</div>
       <div className="card">
-        {Object.entries(config.tasks).map(([key, cat]) => (
-          <div className="task-group" key={key}>
-            <div className="task-group-title">{cat.icon} {cat.label}</div>
-            {cat.tasks.map((tk) => (
+        {dailyTasks.map((tk) => (
+          <TaskRow
+            key={tk.id} id={tk.id} name={tk.name} xp={tk.xp}
+            done={tk.special === "weightLoss" ? !!achievements.weightLoss : !!rec.tasksDone[tk.id]}
+            disabled={!isOwner}
+            onToggle={() => toggleTask(tk.id)}
+          />
+        ))}
+        {penaltyActive && (
+          <>
+            <div className="task-group-title">Penalty Tasks (active)</div>
+            {HARD_MODE_TASKS.map((h) => (
               <TaskRow
-                key={tk.id} id={tk.id} name={tk.name} xp={tk.xp}
-                done={!!rec.tasksDone[tk.id]} disabled={!isOwner}
-                onToggle={() => toggleTask(key, tk.id)}
+                key={h.id} id={h.id} name={h.name} xp={null}
+                done={!!rec.hardMode?.[h.id]} disabled={!isOwner}
+                onToggle={() => {
+                  if (!isOwner) return;
+                  const nextHM = { ...(rec.hardMode || {}), [h.id]: !rec.hardMode?.[h.id] };
+                  updateRec({ hardMode: nextHM });
+                }}
               />
             ))}
-          </div>
-        ))}
+          </>
+        )}
       </div>
 
-      <div className="section-title">Aspects</div>
+      <div className="section-title">Aspects <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>% of total campaign score gained</span></div>
       <div className="aspect-strip">
         {Object.entries(config.tasks).map(([key, cat]) => {
-          const earned = cat.tasks.reduce((s, tk) => s + (rec.tasksDone[tk.id] ? tk.xp : 0), 0);
-          const pct = cat.max ? earned / cat.max : 0;
+          const pct = categoryCampaignPct(days, cat);
           return (
             <div className="aspect-mini" key={key} onClick={() => setOpenAspect((a) => (a === key ? null : key))}>
               <Ring pct={pct} size={48} />
@@ -721,32 +998,56 @@ function HomeTab({ config, setConfig, days, setDays, plans, setPlans, isOwner, o
             {config.tasks[openAspect].icon} {config.tasks[openAspect].label}
           </div>
           {config.tasks[openAspect].tasks.map((tk) => (
-            <TaskRow
-              key={tk.id} id={tk.id} name={tk.name} xp={tk.xp}
-              done={!!rec.tasksDone[tk.id]} disabled={!isOwner}
-              onToggle={() => toggleTask(openAspect, tk.id)}
-            />
+            <TaskRowStatic key={tk.id} name={tk.name} xp={tk.xp} />
           ))}
         </div>
       )}
+
+      <div className="section-title">Skills</div>
+      <div className="card">
+        <TaskRow
+          name="Driving" xp={config.skillXP?.driving ?? 3} done={!!achievements.driving} disabled={!isOwner}
+          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, driving: !p.driving })); onAfterTaskToggle(); }}
+        />
+        <TaskRow
+          name={`${config.bookNames?.bookLHN ?? "Book 1"} (Arc I)`} xp={config.skillXP?.bookLHN ?? 2} done={!!achievements.bookLHN} disabled={!isOwner}
+          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookLHN: !p.bookLHN })); onAfterTaskToggle(); }}
+        />
+        <TaskRow
+          name={`${config.bookNames?.bookAH ?? "Book 2"} (Arc I)`} xp={config.skillXP?.bookAH ?? 2} done={!!achievements.bookAH} disabled={!isOwner}
+          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookAH: !p.bookAH })); onAfterTaskToggle(); }}
+        />
+        <TaskRow
+          name={`${config.bookNames?.bookNew ?? "Book 3"} (Arc III)`} xp={config.skillXP?.bookNew ?? 2} done={!!achievements.bookNew} disabled={!isOwner}
+          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookNew: !p.bookNew })); onAfterTaskToggle(); }}
+        />
+      </div>
     </>
   );
 }
 
-/* ============================= WEEKLY TAB ============================= */
-function WeeklyTab({ achievements, setAchievements, isOwner, afterAchChange }) {
+/* ============================= MILESTONE & GOALS TAB ============================= */
+function MilestoneGoalsTab({ achievements, setAchievements, config, setConfig, isOwner, afterAchChange }) {
   const [chapterDraft, setChapterDraft] = useState(achievements.chapters);
   useEffect(() => setChapterDraft(achievements.chapters), [achievements.chapters]);
-
-  const arcs = [
-    { key: "arcI", label: "Arc I — Foundation", weeks: "Weeks 1–11", max: 5, desc: "Hardest half of NEET syllabus · learn driving · progress toward 4kg loss." },
-    { key: "arcII", label: "Arc II — Evolution", weeks: "Weeks 12–22", max: 5, desc: "Remaining syllabus · whole-syllabus revision · The Laws of Human Nature · progress toward 4kg loss." },
-    { key: "arcIII", label: "Arc III — Ascension", weeks: "Weeks 23–33", max: 5, desc: "30 tests + revision · Atomic Habits · progress toward 4kg loss." },
-  ];
 
   const patchAch = (patch) => {
     setAchievements((prev) => ({ ...prev, ...patch }));
     afterAchChange();
+  };
+
+  const triggerFinalAscent = (on) => {
+    setAchievements((prev) => {
+      const next = [...prev.milestones];
+      if (on) next[5] = true;
+      return { ...prev, finalAscent: on, milestones: next };
+    });
+    setConfig((prev) => ({
+      ...prev,
+      lastRankTier: on ? 6 : prev.lastRankTier,
+      celebrationUntil: on ? Date.now() + 48 * 3600 * 1000 : prev.celebrationUntil,
+      gameCompleted: on,
+    }));
   };
 
   return (
@@ -770,18 +1071,21 @@ function WeeklyTab({ achievements, setAchievements, isOwner, afterAchChange }) {
       </div>
 
       <div className="section-title">
-        The Three Arcs
-        <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>5 pts each · 4kg loss objective</span>
+        Arc Progress
+        <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>4 pts each</span>
       </div>
       <div className="card">
-        {arcs.map((a) => (
+        {[
+          { key: "arcI", label: "Arc I — Foundation", weeks: "Weeks 1–11" },
+          { key: "arcII", label: "Arc II — Evolution", weeks: "Weeks 12–22" },
+          { key: "arcIII", label: "Arc III — Ascension", weeks: "Weeks 23–33" },
+        ].map((a) => (
           <div className="ach-row" key={a.key}>
             <div className="ach-head">
               <span>{a.label} <span className="small-muted">({a.weeks})</span></span>
-              <span>{achievements[a.key]}/{a.max}</span>
+              <span>{achievements[a.key]}/{ARC_MAX}</span>
             </div>
-            <div className="arc-desc">{a.desc}</div>
-            <Stepper value={achievements[a.key]} max={a.max} disabled={!isOwner} onSet={(v) => patchAch({ [a.key]: clamp(v, 0, a.max) })} />
+            <Stepper value={achievements[a.key]} max={ARC_MAX} disabled={!isOwner} onSet={(v) => patchAch({ [a.key]: clamp(v, 0, ARC_MAX) })} />
           </div>
         ))}
       </div>
@@ -792,9 +1096,9 @@ function WeeklyTab({ achievements, setAchievements, isOwner, afterAchChange }) {
       </div>
       <div className="card">
         <div className="milestone-grid">
-          {achievements.milestones.map((on, i) => (
+          {["E → D", "D → C", "C → B", "B → A", "A → S", "S → S+"].map((label, i) => (
             <div
-              key={i} className={`ms ${on ? "on" : ""}`}
+              key={i} className={`ms ${achievements.milestones[i] ? "on" : ""}`}
               onClick={() => {
                 if (!isOwner) return;
                 const next = [...achievements.milestones];
@@ -802,27 +1106,20 @@ function WeeklyTab({ achievements, setAchievements, isOwner, afterAchChange }) {
                 patchAch({ milestones: next });
               }}
             >
-              Milestone {i + 1}
+              {label}
             </div>
           ))}
         </div>
       </div>
 
-      <div className="section-title">Driving <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>3 pts</span></div>
+      <div className="section-title">The Final Ascent</div>
       <div className="card">
-        <div className="ach-head"><span>Driving progression</span><span>{achievements.driving}/3</span></div>
-        <Stepper value={achievements.driving} max={3} disabled={!isOwner} onSet={(v) => patchAch({ driving: clamp(v, 0, 3) })} />
-      </div>
-
-      <div className="section-title">Reading Quests</div>
-      <div className="card">
-        <div className="toggle-row">
-          <span>The Laws of Human Nature <span className="small-muted">(Arc II · 3 pts)</span></span>
-          <SwitchToggle on={achievements.bookLHN} disabled={!isOwner} onClick={() => patchAch({ bookLHN: !achievements.bookLHN })} />
+        <div className="small-muted">
+          Complete the main goal and the rest of the campaign XP will be fulfilled automatically — rank jumps straight to S+.
         </div>
-        <div className="toggle-row">
-          <span>Atomic Habits <span className="small-muted">(Arc III · 3 pts)</span></span>
-          <SwitchToggle on={achievements.bookAH} disabled={!isOwner} onClick={() => patchAch({ bookAH: !achievements.bookAH })} />
+        <div className="toggle-row" style={{ borderBottom: "none" }}>
+          <span>Final Ascent complete</span>
+          <SwitchToggle on={achievements.finalAscent} disabled={!isOwner} onClick={() => triggerFinalAscent(!achievements.finalAscent)} />
         </div>
       </div>
     </>
@@ -854,6 +1151,9 @@ function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner
         <div className="small-muted" style={{ marginTop: 10, fontWeight: 500 }}>
           {misses} miss{misses === 1 ? "" : "es"} logged this week
         </div>
+        <div className="pen-meter">
+          {[1, 2, 3, 4, 5].map((n) => <div key={n} className={`seg ${misses >= n ? "on" : ""}`} />)}
+        </div>
       </div>
 
       {pen.level === 5 && (
@@ -862,6 +1162,7 @@ function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner
             Hard Mode Protocol <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>active — 3 days</span>
           </div>
           <div className="card">
+            <div className="small-muted" style={{ marginBottom: 8 }}>These also appear under Daily Tasks on Home while the penalty is active.</div>
             {HARD_MODE_TASKS.map((h) => (
               <TaskRow
                 key={h.id} id={h.id} name={h.name} xp={null}
@@ -900,13 +1201,16 @@ function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner
         )}
       </div>
 
-      <div className="section-title">Paid Leave</div>
+      <div className="section-title">Leave</div>
       <div className="card">
         <div className="small-muted">
-          7 self-chosen paid-leave days across the campaign. Mark a day as leave from Home — it won't count as a miss.
+          {PAID_LEAVE_MAX} paid-leave days and {LEAVE_MAX} ordinary leave days across the campaign. Mark either from Home — neither counts as a miss.
         </div>
         <div style={{ marginTop: 10, fontWeight: 700 }}>
-          {Object.values(days).filter((d) => d.leave).length} / 7 used
+          {Object.values(days).filter((d) => d.leave).length} / {PAID_LEAVE_MAX} paid leave used
+        </div>
+        <div style={{ marginTop: 4, fontWeight: 700 }}>
+          {Object.values(days).filter((d) => d.leaveOrdinary).length} / {LEAVE_MAX} leave used
         </div>
       </div>
     </>
@@ -914,31 +1218,59 @@ function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner
 }
 
 /* ============================= SETTINGS TAB ============================= */
-function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPermission, onResetCampaign }) {
-  const [pinInput, setPinInput] = useState("");
-  const [pinTry, setPinTry] = useState("");
+function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPermission, onResetCampaign, onLogout }) {
+  const [viewerPwDraft, setViewerPwDraft] = useState(config.viewerPassword || "");
   const [alarmDraft, setAlarmDraft] = useState(config.alarmTime || "");
-  const [startDateDraft, setStartDateDraft] = useState(config.startDate);
+  const [ringtoneDraft, setRingtoneDraft] = useState(config.alarmRingtone || "beep");
   const [thresholdDraft, setThresholdDraft] = useState(config.threshold);
-  const [taskDrafts, setTaskDrafts] = useState(() =>
-    Object.fromEntries(Object.entries(config.tasks).map(([k, cat]) => [k, cat.tasks.map((t) => ({ ...t }))]))
-  );
+
+  // flat list of every editable task, tagged with which category it lives in
+  const [taskDrafts, setTaskDrafts] = useState(() => {
+    const flat = [];
+    for (const [catKey, cat] of Object.entries(config.tasks)) {
+      for (const tk of cat.tasks) flat.push({ ...tk, catKey });
+    }
+    return flat;
+  });
+  const [skillDrafts, setSkillDrafts] = useState(() => ({
+    driving: { name: "Driving", xp: config.skillXP?.driving ?? 3 },
+    bookLHN: { name: config.bookNames?.bookLHN ?? "Book 1", xp: config.skillXP?.bookLHN ?? 2 },
+    bookAH: { name: config.bookNames?.bookAH ?? "Book 2", xp: config.skillXP?.bookAH ?? 2 },
+    bookNew: { name: config.bookNames?.bookNew ?? "Book 3", xp: config.skillXP?.bookNew ?? 2 },
+  }));
 
   const patchConfig = (patch) => setConfig((prev) => ({ ...prev, ...patch }));
 
-  const saveTaskEdit = (key) => {
-    const cat = config.tasks[key];
-    const newTasks = rebalance(taskDrafts[key], cat.max);
-    patchConfig({ tasks: { ...config.tasks, [key]: { ...cat, tasks: newTasks } } });
-    setTaskDrafts((prev) => ({ ...prev, [key]: newTasks.map((t) => ({ ...t })) }));
+  const saveTasks = () => {
+    const byCategory = {};
+    for (const tk of taskDrafts) {
+      if (!byCategory[tk.catKey]) byCategory[tk.catKey] = [];
+      byCategory[tk.catKey].push({ id: tk.id, name: tk.name, xp: tk.xp });
+    }
+    const nextTasks = { ...config.tasks };
+    for (const catKey of Object.keys(nextTasks)) {
+      if (byCategory[catKey]) nextTasks[catKey] = { ...nextTasks[catKey], tasks: byCategory[catKey] };
+    }
+    patchConfig({ tasks: nextTasks });
   };
 
-  const deleteTaskDraft = (key, id) => {
-    setTaskDrafts((prev) => ({ ...prev, [key]: prev[key].filter((t) => t.id !== id) }));
+  const saveSkills = () => {
+    patchConfig({
+      skillXP: {
+        driving: Number(skillDrafts.driving.xp) || 1,
+        bookLHN: Number(skillDrafts.bookLHN.xp) || 1,
+        bookAH: Number(skillDrafts.bookAH.xp) || 1,
+        bookNew: Number(skillDrafts.bookNew.xp) || 1,
+      },
+      bookNames: {
+        bookLHN: skillDrafts.bookLHN.name,
+        bookAH: skillDrafts.bookAH.name,
+        bookNew: skillDrafts.bookNew.name,
+      },
+    });
   };
-  const addTaskDraft = (key) => {
-    setTaskDrafts((prev) => ({ ...prev, [key]: [...prev[key], { id: "t_" + uid(), name: "New task", xp: 5 }] }));
-  };
+
+  const log = (config.loginLog || []).slice(-20).reverse();
 
   return (
     <>
@@ -947,31 +1279,27 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
         <div className="lockbar">
           {isOwner ? "🔓 Owner mode — you can edit everything." : "🔒 View-only mode — you can watch progress but not edit it."}
         </div>
-        {isOwner ? (
+        {isOwner && (
           <>
-            <div className="small-muted">Set / change your edit PIN so shared viewers can't edit.</div>
+            <div className="small-muted">Viewer password — share this with people who should only be able to view.</div>
             <div className="field-row">
-              <input type="text" placeholder="New PIN" value={pinInput} onChange={(e) => setPinInput(e.target.value)} />
-              <button className="btn sm" onClick={() => { patchConfig({ pin: pinInput }); }}>Save PIN</button>
+              <input type="text" placeholder="Viewer password" value={viewerPwDraft} onChange={(e) => setViewerPwDraft(e.target.value)} />
+              <button className="btn sm" onClick={() => patchConfig({ viewerPassword: viewerPwDraft })}>Save</button>
             </div>
-            <div style={{ marginTop: 10 }}>
-              <button className="btn ghost sm" onClick={() => setIsOwner(false)}>Lock editing (switch to view-only)</button>
+            <div className="small-muted" style={{ marginTop: 14 }}>Login activity</div>
+            <div style={{ marginTop: 6, maxHeight: 180, overflowY: "auto" }}>
+              {log.length ? log.map((l, i) => (
+                <div className="log-row" key={i}>
+                  <span>{l.role === "owner" ? "🔓 Owner" : "👁️ Viewer"}</span>
+                  <span>{new Date(l.ts).toLocaleString()}</span>
+                </div>
+              )) : <div className="small-muted">No logins recorded yet.</div>}
             </div>
           </>
-        ) : (
-          <div className="field-row">
-            <input type="password" placeholder="Enter PIN to unlock editing" value={pinTry} onChange={(e) => setPinTry(e.target.value)} />
-            <button
-              className="btn sm"
-              onClick={() => {
-                if (config.pin === "" || pinTry === config.pin) setIsOwner(true);
-                else alert("Wrong PIN.");
-              }}
-            >
-              Unlock
-            </button>
-          </div>
         )}
+        <div style={{ marginTop: 12 }}>
+          <button className="btn ghost sm" onClick={onLogout}>Log out</button>
+        </div>
       </div>
 
       <div className="section-title">Appearance — 5 Themes</div>
@@ -982,7 +1310,8 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
               key={th.id} className={`theme-swatch ${config.theme === th.id ? "sel" : ""}`} title={th.label}
               onClick={() => patchConfig({ theme: th.id })}
             >
-              {th.ic}
+              <ThemeIcon id={th.id} />
+              <span className="tlabel">{th.label}</span>
             </div>
           ))}
         </div>
@@ -1000,13 +1329,21 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
       <div className="section-title">Alarm</div>
       <div className="card">
         <div className="small-muted">
-          Set a daily wake alarm (sounds while the app is open in a browser tab — for a true background alarm, keep this tab open or use your phone's own clock app alongside it).
+          Set a daily wake alarm with a ringtone. It fires while ASCEND is open — install it as an app (see the Install prompt) and allow notifications so it can still nudge you when the tab isn't in front, though true OS-level background alarms aren't possible from a web app.
         </div>
         <div className="field-row">
           <input type="time" value={alarmDraft} disabled={!isOwner} onChange={(e) => setAlarmDraft(e.target.value)} />
+        </div>
+        <div className="small-muted" style={{ marginTop: 10 }}>Ringtone</div>
+        <div className="field-row">
+          <select value={ringtoneDraft} disabled={!isOwner} onChange={(e) => setRingtoneDraft(e.target.value)}>
+            {RINGTONES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+          </select>
+        </div>
+        <div style={{ textAlign: "right", marginTop: 8 }}>
           <button
             className="btn sm" disabled={!isOwner}
-            onClick={() => { patchConfig({ alarmTime: alarmDraft }); onRequestNotifPermission(); }}
+            onClick={() => { patchConfig({ alarmTime: alarmDraft, alarmRingtone: ringtoneDraft }); onRequestNotifPermission(); }}
           >
             Save
           </button>
@@ -1015,24 +1352,12 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
 
       <div className="section-title">Campaign</div>
       <div className="card">
-        <div className="small-muted">Campaign start date</div>
-        <div className="field-row">
-          <input type="date" value={startDateDraft} disabled={!isOwner} onChange={(e) => setStartDateDraft(e.target.value)} />
-        </div>
+        <div className="small-muted">Campaign start: 17 Aug 2026 (fixed).</div>
         <div className="small-muted" style={{ marginTop: 12 }}>XP threshold to count a day as "sufficient"</div>
         <div className="field-row">
           <input type="number" value={thresholdDraft} disabled={!isOwner} onChange={(e) => setThresholdDraft(Number(e.target.value) || 0)} />
+          {isOwner && <button className="btn sm" onClick={() => patchConfig({ threshold: thresholdDraft || 70 })}>Save</button>}
         </div>
-        {isOwner && (
-          <div style={{ textAlign: "right", marginTop: 8 }}>
-            <button
-              className="btn sm"
-              onClick={() => patchConfig({ startDate: startDateDraft || config.startDate, threshold: thresholdDraft || 70 })}
-            >
-              Save
-            </button>
-          </div>
-        )}
         {isOwner && config.started && (
           <div style={{ marginTop: 14 }}>
             <button className="btn ghost sm" onClick={onResetCampaign}>Reset &amp; show Start screen again</button>
@@ -1040,58 +1365,61 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
         )}
       </div>
 
-      <div className="section-title">Customize Daily Tasks</div>
-      {Object.entries(config.tasks).map(([key, cat]) => (
-        <div className="card" key={key}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>
-            {cat.icon} {cat.label} <span className="small-muted">(max {cat.max} XP)</span>
+      <div className="section-title">Tasks</div>
+      <div className="card">
+        <div className="small-muted" style={{ marginBottom: 8 }}>Any task name or XP value can be changed here.</div>
+        {taskDrafts.map((tk, idx) => (
+          <div className="edit-task-row" key={tk.id}>
+            <input
+              type="text" value={tk.name} disabled={!isOwner}
+              onChange={(e) => setTaskDrafts((prev) => prev.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)))}
+            />
+            <input
+              type="number" value={tk.xp} disabled={!isOwner}
+              onChange={(e) => setTaskDrafts((prev) => prev.map((x, i) => (i === idx ? { ...x, xp: Number(e.target.value) || 1 } : x)))}
+            />
           </div>
-          {taskDrafts[key].map((tk) => (
-            <div className="edit-task-row" key={tk.id}>
-              <input
-                type="text" value={tk.name} disabled={!isOwner}
-                onChange={(e) =>
-                  setTaskDrafts((prev) => ({
-                    ...prev,
-                    [key]: prev[key].map((x) => (x.id === tk.id ? { ...x, name: e.target.value } : x)),
-                  }))
-                }
-              />
-              <input
-                type="number" value={tk.xp} disabled={!isOwner}
-                onChange={(e) =>
-                  setTaskDrafts((prev) => ({
-                    ...prev,
-                    [key]: prev[key].map((x) => (x.id === tk.id ? { ...x, xp: Number(e.target.value) || 1 } : x)),
-                  }))
-                }
-              />
-              {isOwner && (
-                <button className="iconbtn" onClick={() => deleteTaskDraft(key, tk.id)}>🗑️</button>
-              )}
-            </div>
-          ))}
-          {isOwner && (
-            <div style={{ textAlign: "right", marginTop: 8, display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button className="btn ghost sm" onClick={() => addTaskDraft(key)}>+ Add task</button>
-              <button className="btn sm" onClick={() => saveTaskEdit(key)}>Save &amp; Rebalance</button>
-            </div>
-          )}
-        </div>
-      ))}
+        ))}
+        {isOwner && (
+          <div style={{ textAlign: "right", marginTop: 8 }}>
+            <button className="btn sm" onClick={saveTasks}>Save</button>
+          </div>
+        )}
+      </div>
+
+      <div className="section-title">Skills &amp; Achievements</div>
+      <div className="card">
+        {Object.entries(skillDrafts).map(([key, sd]) => (
+          <div className="edit-task-row" key={key}>
+            <input
+              type="text" value={sd.name} disabled={!isOwner || key === "driving"}
+              onChange={(e) => setSkillDrafts((prev) => ({ ...prev, [key]: { ...prev[key], name: e.target.value } }))}
+            />
+            <input
+              type="number" value={sd.xp} disabled={!isOwner}
+              onChange={(e) => setSkillDrafts((prev) => ({ ...prev, [key]: { ...prev[key], xp: Number(e.target.value) || 1 } }))}
+            />
+          </div>
+        ))}
+        {isOwner && (
+          <div style={{ textAlign: "right", marginTop: 8 }}>
+            <button className="btn sm" onClick={saveSkills}>Save</button>
+          </div>
+        )}
+      </div>
 
       <div className="section-title">Sharing</div>
       <div className="card">
-        <div className="small-muted">Share this app's link with anyone — they'll see your live progress. Without your PIN, they can't edit anything.</div>
+        <div className="small-muted">Share this app's link with anyone — they'll log in with the viewer password to see live progress without editing.</div>
       </div>
     </>
   );
 }
 
 /* ============================= SPARKLE LAYER ============================= */
-function SparkleLayer() {
+function SparkleLayer({ celebration }) {
   const sparkles = useMemo(() => {
-    const emojis = ["🐱", "✨", "💖", "🌸", "⭐"];
+    const emojis = celebration ? ["🏆", "✨", "⭐", "🎉", "💛"] : ["🐱", "✨", "💖", "🌸", "⭐"];
     return Array.from({ length: 14 }).map((_, i) => ({
       key: i,
       emoji: emojis[i % emojis.length],
@@ -1100,7 +1428,7 @@ function SparkleLayer() {
       delay: Math.random() * 10,
       size: 14 + Math.random() * 14,
     }));
-  }, []);
+  }, [celebration]);
   return (
     <div className="sparkle-layer">
       {sparkles.map((s) => (
@@ -1118,7 +1446,7 @@ function SparkleLayer() {
 /* ============================= MAIN APP ============================= */
 const TABS = [
   { id: "home", label: "Home", ic: "🏠" },
-  { id: "weekly", label: "Weekly/Monthly", ic: "🗓️" },
+  { id: "goals", label: "Milestone & Goals", ic: "🏆" },
   { id: "penalties", label: "Penalties", ic: "⚔️" },
   { id: "settings", label: "Settings", ic: "⚙️" },
 ];
@@ -1131,19 +1459,15 @@ export default function App() {
   const [plans, setPlans] = useState({});
   const [penaltyLog, setPenaltyLog] = useState([]);
   const [activeTab, setActiveTab] = useState("home");
-  const [isOwner, setIsOwner] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
+  const [authRole, setAuthRole] = useState(null); // null | 'owner' | 'viewer'
   const [installEvent, setInstallEvent] = useState(null);
   const [syncStatus, setSyncStatus] = useState(SYNC_ENABLED ? "loading" : "offline");
 
-  // Tracks whether the current in-memory state has local edits Firestore
-  // hasn't confirmed yet, so an incoming snapshot never clobbers a change
-  // the person just made. Also used to skip the "mark dirty" step right
-  // after we apply a remote snapshot ourselves.
   const dirtyRef = useRef(false);
   const applyingRemoteRef = useRef(false);
   const saveTimerRef = useRef(null);
 
-  // pull-to-refresh
   const scrollRef = useRef(null);
   const [ptrY, setPtrY] = useState(-50);
   const [ptrSpin, setPtrSpin] = useState(false);
@@ -1156,16 +1480,18 @@ export default function App() {
     setDays(lsGet(LS_KEYS.days, {}));
     setPlans(lsGet(LS_KEYS.plans, {}));
     setPenaltyLog(lsGet(LS_KEYS.penaltyLog, []));
-    setIsOwner(lsGet(LS_KEYS.config, {}).ownerUnlocked ?? true);
+    const savedAuth = lsGet(LS_KEYS.auth, null);
+    if (savedAuth) { setAuthRole(savedAuth); setIsOwner(savedAuth === "owner"); }
     setLoaded(true);
   }, []);
 
   /* ---- persist to localStorage on every change (offline cache) ---- */
-  useEffect(() => { if (loaded) lsSet(LS_KEYS.config, { ...config, ownerUnlocked: isOwner }); }, [config, isOwner, loaded]);
+  useEffect(() => { if (loaded) lsSet(LS_KEYS.config, config); }, [config, loaded]);
   useEffect(() => { if (loaded) lsSet(LS_KEYS.achievements, achievements); }, [achievements, loaded]);
   useEffect(() => { if (loaded) lsSet(LS_KEYS.days, days); }, [days, loaded]);
   useEffect(() => { if (loaded) lsSet(LS_KEYS.plans, plans); }, [plans, loaded]);
   useEffect(() => { if (loaded) lsSet(LS_KEYS.penaltyLog, penaltyLog); }, [penaltyLog, loaded]);
+  useEffect(() => { if (loaded && authRole) lsSet(LS_KEYS.auth, authRole); }, [authRole, loaded]);
 
   /* ---- Firestore: live subscription to the single shared doc ---- */
   useEffect(() => {
@@ -1180,7 +1506,7 @@ export default function App() {
           if (!dirtyRef.current) {
             const data = snap.data();
             applyingRemoteRef.current = true;
-            setConfig((prev) => ({ ...prev, ...(data.config || {}), ownerUnlocked: prev.ownerUnlocked }));
+            setConfig((prev) => ({ ...prev, ...(data.config || {}) }));
             setAchievements((prev) => ({ ...DEFAULT_ACH, ...(data.achievements || {}) }));
             setDays(data.days || {});
             setPlans(data.plans || {});
@@ -1188,7 +1514,6 @@ export default function App() {
           }
           setSyncStatus("synced");
         } else if (isOwner) {
-          // First device to connect creates the shared document.
           const initial = { config, achievements, days, plans, penaltyLog };
           try { await setDoc(ref, initial); } catch { setSyncStatus("error"); }
           setSyncStatus("synced");
@@ -1199,7 +1524,6 @@ export default function App() {
       () => setSyncStatus("offline")
     );
     return () => unsub();
-    // Only (re)subscribe once loaded — the callback closes over fresh state via refs/updaters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
@@ -1207,7 +1531,7 @@ export default function App() {
   useEffect(() => {
     if (!loaded || !SYNC_ENABLED) return;
     if (applyingRemoteRef.current) { applyingRemoteRef.current = false; return; }
-    if (!isOwner) return; // view-only devices never write
+    if (!isOwner) return;
 
     dirtyRef.current = true;
     setSyncStatus("saving");
@@ -1223,15 +1547,17 @@ export default function App() {
   }, [config, achievements, days, plans, penaltyLog, loaded, isOwner]);
 
   /* ---- derived scoring ---- */
-  const score = useMemo(() => finalScore(days, config.tasks, achievements), [days, config.tasks, achievements]);
-  const rank = useMemo(() => rankFor(score), [score]);
+  const score = useMemo(() => finalScore(days, config, achievements), [days, config, achievements]);
+  const rank = useMemo(() => rankFor(score, achievements.finalAscent), [score, achievements.finalAscent]);
   const arcLabel = currentArcLabel(config);
   currentArcLabel.__lastLabel = `${arcLabel} · Week ${currentWeek(config)} / 33`;
   const celebrating = Date.now() < (config.celebrationUntil || 0);
+  const gameCompleted = !!config.gameCompleted;
 
   /* ---- rank-up auto-check ---- */
   const checkRankUp = useCallback(() => {
-    const s = finalScore(days, config.tasks, achievements);
+    if (achievements.finalAscent) return;
+    const s = finalScore(days, config, achievements);
     const tier = tierFor(s);
     if (tier > config.lastRankTier) {
       const nextMs = achievements.milestones.findIndex((m) => !m);
@@ -1243,7 +1569,7 @@ export default function App() {
       });
       setConfig((prev) => ({ ...prev, lastRankTier: tier, celebrationUntil: Date.now() + 12 * 3600 * 1000 }));
     }
-  }, [days, config.tasks, config.lastRankTier, achievements]);
+  }, [days, config, achievements]);
 
   useEffect(() => { if (loaded) checkRankUp(); }, [score, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1252,6 +1578,7 @@ export default function App() {
     const w = currentWeek(config);
     const misses = weekMissCount(days, config.tasks, config, w);
     const pen = penaltyForMisses(misses);
+    setConfig((prev) => ({ ...prev, __penaltyLevel: pen.level }));
     setPenaltyLog((prev) => {
       const last = prev[prev.length - 1];
       if (!last || last.week !== w || last.level !== pen.level) {
@@ -1264,15 +1591,22 @@ export default function App() {
   useEffect(() => { if (loaded) checkPenaltyAutoLog(); }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---- alarm ---- */
-  const beep = () => {
+  const beep = (ringtone = "beep") => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const o = ctx.createOscillator(), g = ctx.createGain();
       o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = 880; o.type = "sine";
       g.gain.setValueAtTime(0.001, ctx.currentTime);
       g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
+      if (ringtone === "chime") { o.type = "triangle"; o.frequency.value = 660; }
+      else if (ringtone === "siren") { o.type = "sawtooth"; o.frequency.value = 500; }
+      else { o.type = "sine"; o.frequency.value = 880; }
       o.start();
+      if (ringtone === "siren") {
+        let f = 500, up = true;
+        const iv = setInterval(() => { f = up ? f + 60 : f - 60; if (f > 1100) up = false; if (f < 500) up = true; o.frequency.setValueAtTime(f, ctx.currentTime); }, 120);
+        setTimeout(() => clearInterval(iv), 2200);
+      }
       for (let i = 0; i < 4; i++) {
         g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25 + i * 0.5);
         g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.35 + i * 0.5);
@@ -1291,14 +1625,14 @@ export default function App() {
       const todayKey = todayStr() + "_" + config.alarmTime;
       if (hhmm === config.alarmTime && config.lastAlarmFired !== todayKey) {
         setConfig((prev) => ({ ...prev, lastAlarmFired: todayKey }));
-        beep();
+        beep(config.alarmRingtone);
         if ("Notification" in window && Notification.permission === "granted") {
           try { new Notification("ASCEND", { body: "Wake up. The campaign doesn't pause.", icon: "icon-192.png" }); } catch (e) {}
         }
       }
     }, 15000);
     return () => clearInterval(iv);
-  }, [config.alarmTime, config.lastAlarmFired]);
+  }, [config.alarmTime, config.lastAlarmFired, config.alarmRingtone]);
 
   /* ---- PWA install prompt + service worker ---- */
   useEffect(() => {
@@ -1315,7 +1649,7 @@ export default function App() {
     };
   }, []);
 
-  /* ---- pull to refresh (visual only — there's no remote source to refresh from) ---- */
+  /* ---- pull to refresh ---- */
   const onTouchStart = (e) => {
     const el = scrollRef.current;
     if (el && el.scrollTop <= 0) { touchState.current.startY = e.touches[0].clientY; touchState.current.pulling = true; }
@@ -1341,57 +1675,75 @@ export default function App() {
   if (!loaded) return null;
 
   return (
-    <div className="ascend-app" data-theme={config.theme} style={{ "--accent": config.accent, "--accent2": config.accent }}>
+    <div
+      className="ascend-app" data-theme={config.theme} data-celebration={gameCompleted ? "true" : "false"}
+      style={{ "--accent": config.accent, "--accent2": config.accent }}
+    >
       <style>{STYLES}</style>
-      <SparkleLayer />
+      <SparkleLayer celebration={gameCompleted} />
       <div className="app">
         <div className={`ptr ${ptrSpin ? "spin" : ""} ${ptrY <= -50 ? "hidden" : ""}`} style={{ top: ptrY }}>🔄</div>
-        <Hud score={score} rank={rank} celebrating={celebrating} syncStatus={syncStatus} />
-        <div
-          className="scroll" id="page" ref={scrollRef}
-          onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-        >
-          {!config.started ? (
-            <StartGate isOwner={isOwner} onStart={() => setConfig((prev) => ({ ...prev, started: true, startDate: todayStr() }))} />
-          ) : (
-            <>
-              {activeTab === "home" && (
-                <HomeTab
-                  config={config} setConfig={setConfig} days={days} setDays={setDays}
-                  plans={plans} setPlans={setPlans} isOwner={isOwner}
-                  onAfterTaskToggle={() => { checkRankUp(); checkPenaltyAutoLog(); }}
-                />
-              )}
-              {activeTab === "weekly" && (
-                <WeeklyTab
-                  achievements={achievements} setAchievements={setAchievements} isOwner={isOwner}
-                  afterAchChange={checkRankUp}
-                />
-              )}
-              {activeTab === "penalties" && (
-                <PenaltiesTab config={config} days={days} setDays={setDays} achievements={achievements} penaltyLog={penaltyLog} isOwner={isOwner} />
-              )}
-              {activeTab === "settings" && (
-                <SettingsTab
-                  config={config} setConfig={setConfig} isOwner={isOwner} setIsOwner={setIsOwner}
-                  onRequestNotifPermission={requestNotifPermission}
-                  onResetCampaign={() => setConfig((prev) => ({ ...prev, started: false }))}
-                />
-              )}
-            </>
-          )}
-        </div>
-        <div className="tabbar">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id} className={`tab ${activeTab === tab.id ? "active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
+
+        {!authRole ? (
+          <div className="scroll">
+            <LoginGate
+              config={config} setConfig={setConfig}
+              onAuthed={(role) => { setAuthRole(role); setIsOwner(role === "owner"); }}
+            />
+          </div>
+        ) : (
+          <>
+            <Hud score={score} rank={rank} celebrating={celebrating} syncStatus={syncStatus} showBadge={activeTab === "home"} gameCompleted={gameCompleted} />
+            <div
+              className="scroll" id="page" ref={scrollRef}
+              onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
             >
-              <span className="ic">{tab.ic}</span>
-              {tab.label}
-            </button>
-          ))}
-        </div>
+              {!config.started ? (
+                <StartGate isOwner={isOwner} onStart={() => setConfig((prev) => ({ ...prev, started: true }))} />
+              ) : (
+                <>
+                  {activeTab === "home" && (
+                    <HomeTab
+                      config={config} setConfig={setConfig} achievements={achievements} setAchievements={setAchievements}
+                      days={days} setDays={setDays} plans={plans} setPlans={setPlans} isOwner={isOwner}
+                      onAfterTaskToggle={() => { checkRankUp(); checkPenaltyAutoLog(); }}
+                    />
+                  )}
+                  {activeTab === "goals" && (
+                    <MilestoneGoalsTab
+                      achievements={achievements} setAchievements={setAchievements}
+                      config={config} setConfig={setConfig} isOwner={isOwner}
+                      afterAchChange={checkRankUp}
+                    />
+                  )}
+                  {activeTab === "penalties" && (
+                    <PenaltiesTab config={config} days={days} setDays={setDays} achievements={achievements} penaltyLog={penaltyLog} isOwner={isOwner} />
+                  )}
+                  {activeTab === "settings" && (
+                    <SettingsTab
+                      config={config} setConfig={setConfig} isOwner={isOwner} setIsOwner={setIsOwner}
+                      onRequestNotifPermission={requestNotifPermission}
+                      onResetCampaign={() => setConfig((prev) => ({ ...prev, started: false }))}
+                      onLogout={() => { setAuthRole(null); setIsOwner(false); lsSet(LS_KEYS.auth, null); }}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+            <div className="tabbar">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id} className={`tab ${activeTab === tab.id ? "active" : ""}`}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  <span className="ic">{tab.ic}</span>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
         {installEvent && (
           <button
             style={{
