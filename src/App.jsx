@@ -23,9 +23,7 @@ const MAIN_DOC_ID = "main";
 /* ============================= CONSTANTS ============================= */
 const CAMPAIGN_START = "2026-08-17"; // Monday, 17 Aug 2026, IST — fixed, no longer editable
 const CAMPAIGN_DAYS = 231;
-const TOTAL_DAILY_XP_MAX = CAMPAIGN_DAYS * 100;
 const TOTAL_CHAPTERS = 80;
-const ARC_MAX = 4; // was 5 — 1 pt/arc was carved out to fund the Weight Loss goal
 const PAID_LEAVE_MAX = 7;
 const LEAVE_MAX = 27;
 
@@ -75,7 +73,7 @@ const RINGTONES = [
 /* -- daily tasks: Strength, Intellect, Discipline (Skills moved to achievements) -- */
 const DEFAULT_TASKS = {
   strength: {
-    label: "Strength & Fitness", icon: "💪", max: 30,
+    label: "Strength & Fitness", icon: "💪",
     tasks: [
       { id: "walk", name: "4 km walk", xp: 10 },
       { id: "exercise", name: "Exercise", xp: 12 },
@@ -83,7 +81,7 @@ const DEFAULT_TASKS = {
     ],
   },
   intellect: {
-    label: "Intellect", icon: "🧠", max: 40,
+    label: "Intellect", icon: "🧠",
     tasks: [
       { id: "study", name: "Study", xp: 20 },
       { id: "revision", name: "Revision", xp: 10 },
@@ -91,9 +89,9 @@ const DEFAULT_TASKS = {
     ],
   },
   discipline: {
-    label: "Discipline", icon: "🔥", max: 30,
+    label: "Discipline", icon: "🔥",
     tasks: [
-      { id: "water", name: "Adequate water", xp: 8 },
+      { id: "water", name: "Adequate water", xp: 11 },
       { id: "wake", name: "Wake at 8:00 AM", xp: 8 },
       { id: "skincare", name: "Skincare", xp: 4 },
       { id: "haircare", name: "Hair care", xp: 3 },
@@ -103,23 +101,23 @@ const DEFAULT_TASKS = {
   },
 };
 
-/* -- achievements: chapters + arcs (25 pts) + milestones/skills (15 pts) -- */
+/* -- achievements: chapters + weight-loss-per-arc (25 pts) + milestones/skills (15 pts) -- */
 const DEFAULT_ACH = {
   chapters: 0,
-  arcI: 0,
-  arcII: 0,
-  arcIII: 0,
+  weightLossArcI: false,
+  weightLossArcII: false,
+  weightLossArcIII: false,
   milestones: [false, false, false, false, false, false],
   driving: false,
   bookLHN: false,
   bookAH: false,
   bookNew: false,
-  weightLoss: false,
   finalAscent: false,
 };
 
 const DEFAULT_SKILL_XP = { driving: 3, bookLHN: 2, bookAH: 2, bookNew: 2 };
 const DEFAULT_BOOK_NAMES = { bookLHN: "The Laws of Human Nature", bookAH: "Atomic Habits", bookNew: "New Book" };
+const DEFAULT_WEIGHTLOSS_XP = { arcI: 5, arcII: 5, arcIII: 5 };
 
 const DEFAULT_CONFIG = {
   theme: "catmeme", accent: "#ff5fa8", threshold: 70,
@@ -127,13 +125,19 @@ const DEFAULT_CONFIG = {
   pinSet: false, pin: "", viewerPassword: "", loginLog: [],
   alarmTime: "", alarmRingtone: "beep", lastAlarmFired: "",
   lastRankTier: 0, celebrationUntil: 0, gameCompleted: false,
-  weightLossXP: 3, skillXP: DEFAULT_SKILL_XP, bookNames: DEFAULT_BOOK_NAMES,
+  weightLossXP: DEFAULT_WEIGHTLOSS_XP, skillXP: DEFAULT_SKILL_XP, bookNames: DEFAULT_BOOK_NAMES,
   tasks: DEFAULT_TASKS,
 };
 
 /* ============================= UTIL ============================= */
 function todayStr(d = new Date()) {
-  return d.toISOString().slice(0, 10);
+  // Local-date formatting (NOT toISOString, which is UTC and rolls the date
+  // back a day for IST — that off-by-one was why the calendar didn't line
+  // up with Monday).
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 function addDays(str, n) {
   const d = new Date(str + "T00:00:00");
@@ -200,20 +204,24 @@ function totalDailyXP(days, taskDefs) {
   for (const k of Object.keys(days)) sum += dayXP(days, taskDefs, k);
   return sum;
 }
+function perDayMax(taskDefs) {
+  return Object.values(taskDefs).reduce((s, cat) => s + cat.tasks.reduce((ss, t) => ss + t.xp, 0), 0);
+}
 function dailyDisciplineScore(days, taskDefs) {
-  return (totalDailyXP(days, taskDefs) / TOTAL_DAILY_XP_MAX) * 60;
+  const totalMax = perDayMax(taskDefs) * CAMPAIGN_DAYS;
+  return totalMax ? (totalDailyXP(days, taskDefs) / totalMax) * 60 : 0;
 }
 function chaptersScore(achievements) {
   return clamp(achievements.chapters, 0, TOTAL_CHAPTERS) * (10 / TOTAL_CHAPTERS);
 }
-// Achievements: chapters(10) + 3 arcs(4 each = 12) + weight loss(3) = 25 pts
+// Achievements: chapters(10) + weight-loss per arc (5 each = 15) = 25 pts
 function achievementScore(config, achievements) {
+  const wl = config.weightLossXP || DEFAULT_WEIGHTLOSS_XP;
   return (
     chaptersScore(achievements) +
-    clamp(achievements.arcI, 0, ARC_MAX) +
-    clamp(achievements.arcII, 0, ARC_MAX) +
-    clamp(achievements.arcIII, 0, ARC_MAX) +
-    (achievements.weightLoss ? (config.weightLossXP ?? 3) : 0)
+    (achievements.weightLossArcI ? (wl.arcI ?? 5) : 0) +
+    (achievements.weightLossArcII ? (wl.arcII ?? 5) : 0) +
+    (achievements.weightLossArcIII ? (wl.arcIII ?? 5) : 0)
   );
 }
 // Milestones(6) + driving + 3 books = 15 pts
@@ -275,15 +283,15 @@ function flatDailyTasks(config) {
   for (const cat of Object.values(config.tasks)) {
     for (const t of cat.tasks) out.push({ ...t, special: null });
   }
-  out.push({ id: "weightLoss", name: "Weight loss goal (all 3 arcs)", xp: config.weightLossXP ?? 3, special: "weightLoss" });
   return out;
 }
 function categoryCampaignPct(days, cat) {
   let earned = 0;
+  const catMaxXP = cat.tasks.reduce((s, t) => s + t.xp, 0);
   for (const d of Object.values(days)) {
     for (const t of cat.tasks) if (d.tasksDone && d.tasksDone[t.id]) earned += t.xp;
   }
-  const max = cat.max * CAMPAIGN_DAYS;
+  const max = catMaxXP * CAMPAIGN_DAYS;
   return max ? clamp(earned / max, 0, 1) : 0;
 }
 
@@ -381,11 +389,11 @@ const STYLES = `
   margin:22px 2px 10px; display:flex; align-items:center; justify-content:space-between;}
 .ascend-app .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:12px;}
 
-.ascend-app .trio{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
-.ascend-app .trio-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 5px; text-align:center; cursor:pointer;}
-.ascend-app .trio-card .ic{font-size:16px;}
-.ascend-app .trio-card b{display:block; font-size:14px; margin-top:2px;}
-.ascend-app .trio-card span{font-size:9px; color:var(--sub); text-transform:uppercase; letter-spacing:.5px;}
+.ascend-app .trio{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+.ascend-app .trio-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 8px; text-align:center; cursor:pointer;}
+.ascend-app .trio-card .ic{font-size:18px;}
+.ascend-app .trio-card b{display:block; font-size:15px; margin-top:2px;}
+.ascend-app .trio-card span{font-size:9.5px; color:var(--sub); text-transform:uppercase; letter-spacing:.5px;}
 .ascend-app .compact-detail{margin-top:10px;}
 
 .ascend-app .aspect-strip{display:flex; justify-content:space-between; gap:8px; margin-top:6px;}
@@ -464,7 +472,7 @@ const STYLES = `
 .ascend-app .pen-meter .seg.on{background:var(--red);}
 
 .ascend-app .swatch-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;}
-.ascend-app .theme-swatch{width:60px; height:60px; border-radius:16px; border:2px solid var(--line); cursor:pointer; display:flex; align-items:center; justify-content:center; background:var(--card2); overflow:hidden; position:relative;}
+.ascend-app .theme-swatch{width:68px; height:68px; border-radius:16px; border:2px solid var(--line); cursor:pointer; display:flex; align-items:center; justify-content:center; background:var(--card2); overflow:hidden; position:relative;}
 .ascend-app .theme-swatch.sel{border-color:var(--accent); transform:scale(1.06);}
 .ascend-app .theme-swatch span.tlabel{position:absolute; bottom:1px; left:0; right:0; font-size:7px; text-align:center; font-weight:700; background:rgba(0,0,0,0.35); color:#fff; padding:1px 0;}
 .ascend-app .swatch{width:34px; height:34px; border-radius:50%; border:2px solid var(--line); cursor:pointer;}
@@ -489,20 +497,51 @@ const STYLES = `
 .ascend-app .start-gate .big-badge{width:110px; height:110px; border-radius:50%; background:radial-gradient(circle at 35% 30%,var(--accent2),var(--accent)); box-shadow:0 0 40px 6px var(--accent); margin-bottom:18px; display:flex; align-items:center; justify-content:center; font-size:40px;}
 
 /* -- theme swatch animated icons (no emoji) -- */
-.ti-cat{position:relative; width:100%; height:100%;}
-.ti-cat .spark{position:absolute; width:5px; height:5px; border-radius:50%; background:#ff5fa8; animation:tiTwinkle 1.4s ease-in-out infinite;}
-@keyframes tiTwinkle{0%,100%{opacity:.25; transform:scale(.6);}50%{opacity:1; transform:scale(1.2);}}
-.ti-moon{width:26px; height:26px; border-radius:50%; background:#dfe3ff; box-shadow:-8px 0 0 2px #6d7386 inset; animation:tiGlow 2.4s ease-in-out infinite;}
-@keyframes tiGlow{0%,100%{box-shadow:-8px 0 0 2px #6d7386 inset,0 0 6px 1px rgba(180,190,255,0.4);}50%{box-shadow:-8px 0 0 2px #6d7386 inset,0 0 16px 4px rgba(180,190,255,0.8);}}
-.ti-sun{width:22px; height:22px; border-radius:50%; background:#ffcc4d; animation:tiSpin 6s linear infinite; box-shadow:0 0 10px 2px rgba(255,204,77,0.6);}
+@keyframes tiTwinkle{0%,100%{opacity:.2; transform:scale(.5);}50%{opacity:1; transform:scale(1.3);}}
 @keyframes tiSpin{to{transform:rotate(360deg);}}
-.ti-sun::before{content:''; position:absolute; inset:-10px; border-radius:50%; background:
-  repeating-conic-gradient(#ffcc4d 0deg 8deg, transparent 8deg 45deg);
-  z-index:-1; animation:tiSpin 6s linear infinite reverse;}
-.ti-cyber{width:24px; height:24px; background:#00eaff; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); animation:tiFlicker 1.1s steps(2) infinite;}
-@keyframes tiFlicker{0%,100%{opacity:1;}45%{opacity:.3;}60%{opacity:1;}}
-.ti-leaf{width:20px; height:28px; background:#3ddc84; border-radius:0 100% 0 100%; transform-origin:bottom center; animation:tiSway 2.2s ease-in-out infinite;}
-@keyframes tiSway{0%,100%{transform:rotate(-12deg);}50%{transform:rotate(12deg);}}
+
+/* Cat Glitter: a little cat face (two ears + head) that wiggles, with orbiting sparkles */
+.ti-cat{position:relative; width:46px; height:44px;}
+.ti-cat-ear{position:absolute; top:0; width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent;
+  border-bottom:14px solid #ff4fa0; animation:tiCatWiggle 1.6s ease-in-out infinite; transform-origin:bottom center;}
+.ti-cat-ear.l{left:6px;}
+.ti-cat-ear.r{right:6px;}
+.ti-cat-head{position:absolute; left:9px; top:9px; width:28px; height:24px; background:#ff4fa0; border-radius:50% 50% 42% 42%;
+  animation:tiCatWiggle 1.6s ease-in-out infinite; transform-origin:bottom center;}
+@keyframes tiCatWiggle{0%,100%{transform:rotate(-7deg);}50%{transform:rotate(7deg);}}
+.ti-cat-spark{position:absolute; width:4px; height:4px; border-radius:50%; background:#fff; box-shadow:0 0 5px 1px #ff9fd4; animation:tiTwinkle 1.3s ease-in-out infinite;}
+
+/* Obsidian: a glowing crescent moon that gently bobs, with twinkling stars */
+.ti-moon-wrap{position:relative; width:44px; height:44px;}
+.ti-moon{position:absolute; left:9px; top:9px; width:26px; height:26px; border-radius:50%; background:#e4e8ff;
+  box-shadow:-9px -2px 0 3px #23283a inset, 0 0 10px 2px rgba(190,200,255,0.55);
+  animation:tiMoonFloat 2.6s ease-in-out infinite;}
+@keyframes tiMoonFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+.ti-star{position:absolute; width:3px; height:3px; background:#fff; border-radius:50%; animation:tiTwinkle 1.5s ease-in-out infinite;}
+
+/* Daylight: a sun with spinning rays that pulses */
+.ti-sun-wrap{position:relative; width:46px; height:46px;}
+.ti-sun-rays{position:absolute; inset:1px; border-radius:50%;
+  background:repeating-conic-gradient(#ffcc4d 0deg 7deg, transparent 7deg 30deg);
+  animation:tiSpin 5s linear infinite; opacity:.9;}
+.ti-sun-core{position:absolute; inset:13px; border-radius:50%; background:#ffcc4d;
+  box-shadow:0 0 10px 2px rgba(255,204,77,0.75); animation:tiSunPulse 1.8s ease-in-out infinite;}
+@keyframes tiSunPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.15);}}
+
+/* Cyber: a pulsing neon diamond with a scanning laser line */
+.ti-cyber-wrap{position:relative; width:42px; height:42px; overflow:hidden; border-radius:6px;}
+.ti-cyber-diamond{position:absolute; inset:5px; border:2px solid #00eaff; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  animation:tiCyberPulse 1.3s ease-in-out infinite;}
+@keyframes tiCyberPulse{0%,100%{transform:scale(1); filter:drop-shadow(0 0 3px #00eaff);}50%{transform:scale(1.2); filter:drop-shadow(0 0 9px #00eaff);}}
+.ti-cyber-scan{position:absolute; left:2px; right:2px; height:2px; background:#00eaff; box-shadow:0 0 6px 1px #00eaff; animation:tiScan 1.7s linear infinite;}
+@keyframes tiScan{0%{top:2px; opacity:0;}12%{opacity:1;}88%{opacity:1;}100%{top:40px; opacity:0;}}
+
+/* Forest: a little swaying pine tree */
+.ti-tree-wrap{position:relative; width:34px; height:44px; transform-origin:bottom center; animation:tiSway 2.4s ease-in-out infinite;}
+.ti-tree-top{position:absolute; top:0; left:5px; width:0; height:0; border-left:12px solid transparent; border-right:12px solid transparent; border-bottom:15px solid #3ddc84;}
+.ti-tree-mid{position:absolute; top:9px; left:2px; width:0; height:0; border-left:15px solid transparent; border-right:15px solid transparent; border-bottom:17px solid #2fb86e;}
+.ti-tree-trunk{position:absolute; bottom:0; left:13px; width:6px; height:9px; background:#7a5636; border-radius:1px;}
+@keyframes tiSway{0%,100%{transform:rotate(-9deg);}50%{transform:rotate(9deg);}}
 `;
 
 /* ============================= SMALL UI HELPERS ============================= */
@@ -568,17 +607,50 @@ function ThemeIcon({ id }) {
   if (id === "catmeme") {
     return (
       <div className="ti-cat">
-        <div className="spark" style={{ left: 6, top: 8, animationDelay: "0s" }} />
-        <div className="spark" style={{ left: 30, top: 14, animationDelay: ".3s" }} />
-        <div className="spark" style={{ left: 16, top: 30, animationDelay: ".6s" }} />
-        <div className="spark" style={{ left: 38, top: 34, animationDelay: ".9s" }} />
+        <div className="ti-cat-ear l" />
+        <div className="ti-cat-ear r" />
+        <div className="ti-cat-head" />
+        <div className="ti-cat-spark" style={{ left: 1, top: 3, animationDelay: "0s" }} />
+        <div className="ti-cat-spark" style={{ right: 1, top: 10, animationDelay: ".4s" }} />
+        <div className="ti-cat-spark" style={{ left: 4, bottom: 2, animationDelay: ".8s" }} />
       </div>
     );
   }
-  if (id === "dark") return <div className="ti-moon" />;
-  if (id === "light") return <div className="ti-sun" />;
-  if (id === "cyber") return <div className="ti-cyber" />;
-  if (id === "forest") return <div className="ti-leaf" />;
+  if (id === "dark") {
+    return (
+      <div className="ti-moon-wrap">
+        <div className="ti-moon" />
+        <div className="ti-star" style={{ left: 4, top: 8 }} />
+        <div className="ti-star" style={{ right: 4, top: 18, animationDelay: ".5s" }} />
+        <div className="ti-star" style={{ left: 8, bottom: 5, animationDelay: ".9s" }} />
+      </div>
+    );
+  }
+  if (id === "light") {
+    return (
+      <div className="ti-sun-wrap">
+        <div className="ti-sun-rays" />
+        <div className="ti-sun-core" />
+      </div>
+    );
+  }
+  if (id === "cyber") {
+    return (
+      <div className="ti-cyber-wrap">
+        <div className="ti-cyber-diamond" />
+        <div className="ti-cyber-scan" />
+      </div>
+    );
+  }
+  if (id === "forest") {
+    return (
+      <div className="ti-tree-wrap">
+        <div className="ti-tree-top" />
+        <div className="ti-tree-mid" />
+        <div className="ti-tree-trunk" />
+      </div>
+    );
+  }
   return null;
 }
 
@@ -762,23 +834,19 @@ function StartGate({ isOwner, onStart }) {
 /* ============================= HOME TAB ============================= */
 function HomeTab({ config, setConfig, achievements, setAchievements, days, setDays, plans, setPlans, isOwner, onAfterTaskToggle }) {
   const [openAspect, setOpenAspect] = useState(null);
-  const [compactExpanded, setCompactExpanded] = useState({ protein: false, planner: false, review: false });
+  const [compactExpanded, setCompactExpanded] = useState({ protein: false, planner: false });
   const [selectedDate, setSelectedDate] = useState(todayStr());
 
   const t = todayStr();
   const sel = selectedDate;
-  const rec = days[sel] || { tasksDone: {}, protein: 0, studyLog: "", questions: 0, leave: false, leaveOrdinary: false, hardMode: {} };
+  const rec = days[sel] || { tasksDone: {}, protein: 0, leave: false, leaveOrdinary: false, hardMode: {} };
 
   const [proteinDraft, setProteinDraft] = useState(rec.protein || "");
-  const [studyDraft, setStudyDraft] = useState(rec.studyLog || "");
-  const [questionsDraft, setQuestionsDraft] = useState(rec.questions || "");
   const [plannerDraft, setPlannerDraft] = useState(plans[addDays(t, 1)] || "");
 
   useEffect(() => {
     const r = days[sel] || {};
     setProteinDraft(r.protein || "");
-    setStudyDraft(r.studyLog || "");
-    setQuestionsDraft(r.questions || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel]);
 
@@ -791,11 +859,6 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
 
   const toggleTask = (taskId) => {
     if (!isOwner) return;
-    if (taskId === "weightLoss") {
-      setAchievements((prev) => ({ ...prev, weightLoss: !prev.weightLoss }));
-      onAfterTaskToggle();
-      return;
-    }
     const current = days[sel] || { tasksDone: {} };
     const nextDone = { ...(current.tasksDone || {}), [taskId]: !current.tasksDone?.[taskId] };
     setDays((prev) => ({ ...prev, [sel]: { ...(prev[sel] || rec), tasksDone: nextDone } }));
@@ -835,11 +898,6 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
           <b>{dayXP(days, config.tasks, sel)}</b>
           <span>XP</span>
         </div>
-        <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, review: !s.review }))}>
-          <div className="ic">🗒️</div>
-          <b>{(rec.studyLog ? 1 : 0) + (rec.questions ? 1 : 0)}</b>
-          <span>Review</span>
-        </div>
       </div>
 
       {compactExpanded.protein && (
@@ -874,29 +932,6 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
               onClick={() => setPlans((prev) => ({ ...prev, [addDays(t, 1)]: plannerDraft }))}
             >
               Save Plan
-            </button>
-          </div>
-        </div>
-      )}
-
-      {compactExpanded.review && (
-        <div className="card compact-detail">
-          <div className="small-muted">What did you study on {fmtDate(sel)}?</div>
-          <textarea
-            placeholder="e.g. Physics — Rotational Motion" disabled={!isOwner}
-            value={studyDraft} onChange={(e) => setStudyDraft(e.target.value)}
-          />
-          <div style={{ textAlign: "right", marginTop: 6 }}>
-            <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ studyLog: studyDraft })}>Save</button>
-          </div>
-          <div className="small-muted" style={{ marginTop: 10 }}>Questions done</div>
-          <div className="field-row">
-            <input
-              type="number" placeholder="No. of questions" value={questionsDraft} disabled={!isOwner}
-              onChange={(e) => setQuestionsDraft(e.target.value)}
-            />
-            <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ questions: Number(questionsDraft) || 0 })}>
-              Log
             </button>
           </div>
         </div>
@@ -957,7 +992,7 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
         {dailyTasks.map((tk) => (
           <TaskRow
             key={tk.id} id={tk.id} name={tk.name} xp={tk.xp}
-            done={tk.special === "weightLoss" ? !!achievements.weightLoss : !!rec.tasksDone[tk.id]}
+            done={!!rec.tasksDone[tk.id]}
             disabled={!isOwner}
             onToggle={() => toggleTask(tk.id)}
           />
@@ -978,6 +1013,23 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
             ))}
           </>
         )}
+      </div>
+
+      <div className="section-title">Strength — Weight Loss</div>
+      <div className="card">
+        <div className="small-muted" style={{ marginBottom: 6 }}>One toggle per arc — mark it when that arc's weight-loss goal is hit.</div>
+        <TaskRow
+          name="Weight loss — Arc I" xp={config.weightLossXP?.arcI ?? 5} done={!!achievements.weightLossArcI} disabled={!isOwner}
+          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, weightLossArcI: !p.weightLossArcI })); onAfterTaskToggle(); }}
+        />
+        <TaskRow
+          name="Weight loss — Arc II" xp={config.weightLossXP?.arcII ?? 5} done={!!achievements.weightLossArcII} disabled={!isOwner}
+          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, weightLossArcII: !p.weightLossArcII })); onAfterTaskToggle(); }}
+        />
+        <TaskRow
+          name="Weight loss — Arc III" xp={config.weightLossXP?.arcIII ?? 5} done={!!achievements.weightLossArcIII} disabled={!isOwner}
+          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, weightLossArcIII: !p.weightLossArcIII })); onAfterTaskToggle(); }}
+        />
       </div>
 
       <div className="section-title">Aspects <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>% of total campaign score gained</span></div>
@@ -1068,26 +1120,6 @@ function MilestoneGoalsTab({ achievements, setAchievements, config, setConfig, i
           <button className="btn ghost sm" disabled={!isOwner} onClick={() => setChapterDraft((v) => clamp(v + 1, 0, 80))}>+</button>
           <button className="btn sm" disabled={!isOwner} onClick={() => patchAch({ chapters: clamp(chapterDraft, 0, 80) })}>Save</button>
         </div>
-      </div>
-
-      <div className="section-title">
-        Arc Progress
-        <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>4 pts each</span>
-      </div>
-      <div className="card">
-        {[
-          { key: "arcI", label: "Arc I — Foundation", weeks: "Weeks 1–11" },
-          { key: "arcII", label: "Arc II — Evolution", weeks: "Weeks 12–22" },
-          { key: "arcIII", label: "Arc III — Ascension", weeks: "Weeks 23–33" },
-        ].map((a) => (
-          <div className="ach-row" key={a.key}>
-            <div className="ach-head">
-              <span>{a.label} <span className="small-muted">({a.weeks})</span></span>
-              <span>{achievements[a.key]}/{ARC_MAX}</span>
-            </div>
-            <Stepper value={achievements[a.key]} max={ARC_MAX} disabled={!isOwner} onSet={(v) => patchAch({ [a.key]: clamp(v, 0, ARC_MAX) })} />
-          </div>
-        ))}
       </div>
 
       <div className="section-title">
