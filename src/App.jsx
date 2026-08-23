@@ -64,12 +64,6 @@ const THEMES = [
 
 const ACCENTS = ["#7c5cff", "#ff5c8a", "#3ddc84", "#ffb14d", "#4fd0ff", "#ff5c5c", "#c08bff"];
 
-const RINGTONES = [
-  { id: "beep", label: "Classic Beep" },
-  { id: "chime", label: "Chime" },
-  { id: "siren", label: "Siren" },
-];
-
 /* -- daily tasks: Strength, Intellect, Discipline (Skills moved to achievements) -- */
 const DEFAULT_TASKS = {
   strength: {
@@ -123,7 +117,6 @@ const DEFAULT_CONFIG = {
   theme: "catmeme", accent: "#ff5fa8", threshold: 70,
   startDate: CAMPAIGN_START, started: false,
   pinSet: false, pin: "", viewerPassword: "", loginLog: [],
-  alarmTime: "", alarmRingtone: "beep", lastAlarmFired: "",
   lastRankTier: 0, celebrationUntil: 0, gameCompleted: false,
   weightLossXP: DEFAULT_WEIGHTLOSS_XP, skillXP: DEFAULT_SKILL_XP, bookNames: DEFAULT_BOOK_NAMES,
   tasks: DEFAULT_TASKS,
@@ -253,13 +246,13 @@ function currentArcLabel(config) {
   if (w <= 22) return "Arc II — Evolution";
   return "Arc III — Ascension";
 }
-function weekMissCount(days, taskDefs, config, weekNum) {
+function weekMissCount(days, taskDefs, config, weekNum, uptoExclusive) {
   const start = weekStartDate(config.startDate, weekNum);
+  const limit = uptoExclusive || addDays(todayStr(), 1); // default: include today
   let misses = 0;
-  const t = todayStr();
   for (let i = 0; i < 7; i++) {
     const d = addDays(start, i);
-    if (d > t) continue;
+    if (d >= limit) continue;
     const rec = days[d];
     if (rec && (rec.leave || rec.leaveOrdinary)) continue;
     const xp = dayXP(days, taskDefs, d);
@@ -274,6 +267,14 @@ function penaltyForMisses(n) {
   if (n === 3) return { level: 3, name: "P3 — Loss", desc: "Lose one planned leisure activity + no non-essential phone use until core quest is done." };
   if (n === 4) return { level: 4, name: "P4 — Boss", desc: "Lose one reward coupon + full leisure restriction next day." };
   return { level: 5, name: "P5 — Hard Mode", desc: "Lose one paid-leave day + 3 days of Hard Mode." };
+}
+// A miss on day D only puts Hard Mode tasks in front of you starting day D+1 —
+// never the same day you missed. Computed by excluding `dateStr` itself from
+// the week's miss count.
+function penaltyLevelForDate(days, config, dateStr) {
+  const wk = clamp(weekOf(dateStr, config.startDate), 1, 33);
+  const misses = weekMissCount(days, config.tasks, config, wk, dateStr);
+  return penaltyForMisses(misses).level;
 }
 // Flattened list of every daily task, plus the Weight Loss goal (a one-time
 // achievement, but shown inline in the same checklist per spec — no aspect
@@ -341,11 +342,16 @@ const STYLES = `
 .ascend-app .scroll{flex:1; overflow-y:auto; padding:14px 14px 100px; -webkit-overflow-scrolling:touch; position:relative;}
 .ascend-app .scroll::-webkit-scrollbar{width:0;height:0;}
 
-.ascend-app .sparkle-layer{position:fixed; inset:0; pointer-events:none; z-index:5; overflow:hidden; display:none;}
-.ascend-app[data-theme="catmeme"] .sparkle-layer{display:block;}
-.ascend-app[data-celebration="true"] .sparkle-layer{display:block;}
-.ascend-app .sparkle-layer span{position:absolute; bottom:-40px; font-size:20px; opacity:.85; animation:ascendFloatUp linear infinite;}
+.ascend-app .sparkle-layer{position:fixed; inset:0; pointer-events:none; z-index:5; overflow:hidden;}
+.ascend-app .sparkle-layer span{position:absolute; opacity:.85;}
+.ascend-app .sparkle-layer span.float{animation-name:ascendFloatUp; animation-timing-function:linear; animation-iteration-count:infinite;}
+.ascend-app .sparkle-layer span.fall{animation-name:ascendFall; animation-timing-function:linear; animation-iteration-count:infinite;}
+.ascend-app .sparkle-layer span.drift{animation-name:ascendDrift; animation-timing-function:linear; animation-iteration-count:infinite;}
+.ascend-app .sparkle-layer span.twinkleDrift{animation-name:ascendTwinkleDrift; animation-timing-function:ease-in-out; animation-iteration-count:infinite;}
 @keyframes ascendFloatUp{0%{transform:translateY(0) rotate(0deg); opacity:0;}10%{opacity:.9;}100%{transform:translateY(-110vh) rotate(360deg); opacity:0;}}
+@keyframes ascendFall{0%{transform:translateY(0) rotate(0deg); opacity:0;}10%{opacity:.85;}100%{transform:translateY(110vh) rotate(220deg); opacity:0;}}
+@keyframes ascendDrift{0%{transform:translateX(0); opacity:0;}10%{opacity:.75;}90%{opacity:.75;}100%{transform:translateX(120vw); opacity:0;}}
+@keyframes ascendTwinkleDrift{0%,100%{opacity:.12;}50%{opacity:.9;}}
 .ascend-app[data-theme="catmeme"] .card,.ascend-app[data-theme="catmeme"] .aspect-mini,.ascend-app[data-theme="catmeme"] .rank-core{
   box-shadow:0 4px 18px rgba(255,110,190,0.25), var(--shadow);}
 .ascend-app[data-theme="catmeme"] .btn{background:linear-gradient(135deg,#ff5fa8,#c07bff);}
@@ -389,11 +395,11 @@ const STYLES = `
   margin:22px 2px 10px; display:flex; align-items:center; justify-content:space-between;}
 .ascend-app .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:12px;}
 
-.ascend-app .trio{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
-.ascend-app .trio-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 8px; text-align:center; cursor:pointer;}
-.ascend-app .trio-card .ic{font-size:18px;}
-.ascend-app .trio-card b{display:block; font-size:15px; margin-top:2px;}
-.ascend-app .trio-card span{font-size:9.5px; color:var(--sub); text-transform:uppercase; letter-spacing:.5px;}
+.ascend-app .trio{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
+.ascend-app .trio-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 5px; text-align:center; cursor:pointer;}
+.ascend-app .trio-card .ic{font-size:16px;}
+.ascend-app .trio-card b{display:block; font-size:14px; margin-top:2px;}
+.ascend-app .trio-card span{font-size:8.5px; color:var(--sub); text-transform:uppercase; letter-spacing:.4px;}
 .ascend-app .compact-detail{margin-top:10px;}
 
 .ascend-app .aspect-strip{display:flex; justify-content:space-between; gap:8px; margin-top:6px;}
@@ -834,7 +840,7 @@ function StartGate({ isOwner, onStart }) {
 /* ============================= HOME TAB ============================= */
 function HomeTab({ config, setConfig, achievements, setAchievements, days, setDays, plans, setPlans, isOwner, onAfterTaskToggle }) {
   const [openAspect, setOpenAspect] = useState(null);
-  const [compactExpanded, setCompactExpanded] = useState({ protein: false, planner: false });
+  const [compactExpanded, setCompactExpanded] = useState({ protein: false, planner: false, recap: false });
   const [selectedDate, setSelectedDate] = useState(todayStr());
 
   const t = todayStr();
@@ -875,23 +881,36 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
   const leaveCount = Object.values(days).filter((d) => d.leaveOrdinary).length;
 
   const dailyTasks = flatDailyTasks(config);
-  const penaltyActive = config.__penaltyLevel > 0;
+  // A miss only adds Hard Mode tasks starting the NEXT day, never same-day.
+  const penaltyActive = penaltyLevelForDate(days, config, sel) === 5;
+  const recapDone = dailyTasks.filter((tk) => !!rec.tasksDone[tk.id]);
+  const recapPlan = plans[sel] || "";
 
   // Monday-first day order for the week strip
   const dow = ["M", "T", "W", "T", "F", "S", "S"];
 
+  const openDay = (d) => {
+    setSelectedDate(d);
+    setCompactExpanded((s) => ({ ...s, recap: true }));
+  };
+
   return (
     <>
       <div className="trio">
+        <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, planner: !s.planner }))}>
+          <div className="ic">📝</div>
+          <b>{plannerCount}</b>
+          <span>Today's Plan</span>
+        </div>
+        <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, recap: !s.recap }))}>
+          <div className="ic">🗒️</div>
+          <b>{recapDone.length}</b>
+          <span>Daily Recap</span>
+        </div>
         <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, protein: !s.protein }))}>
           <div className="ic">🍗</div>
           <b>{rec.protein || 0}g</b>
           <span>Protein</span>
-        </div>
-        <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, planner: !s.planner }))}>
-          <div className="ic">📝</div>
-          <b>{plannerCount}</b>
-          <span>Planner</span>
         </div>
         <div className="trio-card" onClick={() => document.getElementById("aspect-detail")?.scrollIntoView({ behavior: "smooth" })}>
           <div className="ic">⚡</div>
@@ -899,6 +918,41 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
           <span>XP</span>
         </div>
       </div>
+
+      {compactExpanded.planner && (
+        <div className="card compact-detail">
+          <div className="small-muted">Tonight's plan for tomorrow</div>
+          <textarea
+            placeholder="Plan tomorrow's priorities before you sleep..." disabled={!isOwner}
+            value={plannerDraft} onChange={(e) => setPlannerDraft(e.target.value)}
+          />
+          <div style={{ textAlign: "right", marginTop: 6 }}>
+            <button
+              className="btn sm" disabled={!isOwner}
+              onClick={() => setPlans((prev) => ({ ...prev, [addDays(t, 1)]: plannerDraft }))}
+            >
+              Save Plan
+            </button>
+          </div>
+        </div>
+      )}
+
+      {compactExpanded.recap && (
+        <div className="card compact-detail">
+          <div className="small-muted">Plan for {fmtDate(sel)}</div>
+          <div style={{ marginTop: 6, fontSize: 13.5, whiteSpace: "pre-wrap" }}>
+            {recapPlan ? recapPlan : <span className="small-muted">No plan was set for this day.</span>}
+          </div>
+          <div className="small-muted" style={{ marginTop: 14 }}>Completed on {fmtDate(sel)}</div>
+          <div style={{ marginTop: 4 }}>
+            {recapDone.length ? (
+              recapDone.map((tk) => <TaskRowStatic key={tk.id} name={tk.name} xp={tk.xp} />)
+            ) : (
+              <div className="small-muted">Nothing marked done yet.</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {compactExpanded.protein && (
         <div className="card compact-detail">
@@ -914,24 +968,6 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
             />
             <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ protein: Number(proteinDraft) || 0 })}>
               Log
-            </button>
-          </div>
-        </div>
-      )}
-
-      {compactExpanded.planner && (
-        <div className="card compact-detail">
-          <div className="small-muted">Tonight's plan for tomorrow</div>
-          <textarea
-            placeholder="Plan tomorrow's priorities before you sleep..." disabled={!isOwner}
-            value={plannerDraft} onChange={(e) => setPlannerDraft(e.target.value)}
-          />
-          <div style={{ textAlign: "right", marginTop: 6 }}>
-            <button
-              className="btn sm" disabled={!isOwner}
-              onClick={() => setPlans((prev) => ({ ...prev, [addDays(t, 1)]: plannerDraft }))}
-            >
-              Save Plan
             </button>
           </div>
         </div>
@@ -955,7 +991,7 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
             else if (dr) cls = dayXP(days, config.tasks, d) >= config.threshold ? "g" : "r";
             else cls = d < t ? "r" : "";
             return (
-              <div className="day-dot" key={d} onClick={() => { if (d <= t) setSelectedDate(d); }}>
+              <div className="day-dot" key={d} onClick={() => { if (d <= t) openDay(d); }}>
                 <div className={`dot ${cls} ${d === t ? "today" : ""} ${d === sel ? "selected" : ""}`} />
                 {dow[i]}
               </div>
@@ -965,7 +1001,7 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
         <div className="small-muted" style={{ marginTop: 10 }}>🟢 sufficient XP · 🟡 paid leave · 🔵 leave · 🔴 insufficient XP</div>
         {sel !== t && (
           <div className="day-header" style={{ marginTop: 10 }}>
-            <span className="small-muted">Editing {fmtDate(sel)}</span>
+            <span className="small-muted">Viewing {fmtDate(sel)} — everything planned and done that day is in Daily Recap above</span>
             <button className="btn ghost sm" onClick={() => setSelectedDate(t)}>Back to today</button>
           </div>
         )}
@@ -1062,7 +1098,7 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
           onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, driving: !p.driving })); onAfterTaskToggle(); }}
         />
         <TaskRow
-          name={`${config.bookNames?.bookLHN ?? "Book 1"} (Arc I)`} xp={config.skillXP?.bookLHN ?? 2} done={!!achievements.bookLHN} disabled={!isOwner}
+          name={`${config.bookNames?.bookLHN ?? "Book 1"} (Arc II)`} xp={config.skillXP?.bookLHN ?? 2} done={!!achievements.bookLHN} disabled={!isOwner}
           onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookLHN: !p.bookLHN })); onAfterTaskToggle(); }}
         />
         <TaskRow
@@ -1161,11 +1197,13 @@ function MilestoneGoalsTab({ achievements, setAchievements, config, setConfig, i
 /* ============================= PENALTIES TAB ============================= */
 function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner }) {
   const w = currentWeek(config);
-  const misses = weekMissCount(days, config.tasks, config, w);
+  const misses = weekMissCount(days, config.tasks, config, w); // live, today-inclusive — for the status display
   const pen = penaltyForMisses(misses);
   const history = penaltyLog.slice(-15).reverse();
   const t = todayStr();
   const rec = days[t] || { hardMode: {} };
+  // Actionable checklist only activates the day AFTER misses cross the threshold.
+  const effectiveLevel = penaltyLevelForDate(days, config, t);
 
   const toggleHardMode = (id) => {
     if (!isOwner) return;
@@ -1186,9 +1224,14 @@ function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner
         <div className="pen-meter">
           {[1, 2, 3, 4, 5].map((n) => <div key={n} className={`seg ${misses >= n ? "on" : ""}`} />)}
         </div>
+        {pen.level === 5 && effectiveLevel < 5 && (
+          <div className="small-muted" style={{ marginTop: 10, fontWeight: 500 }}>
+            Hard Mode tasks start showing tomorrow, not today.
+          </div>
+        )}
       </div>
 
-      {pen.level === 5 && (
+      {effectiveLevel === 5 && (
         <>
           <div className="section-title">
             Hard Mode Protocol <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>active — 3 days</span>
@@ -1250,10 +1293,8 @@ function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner
 }
 
 /* ============================= SETTINGS TAB ============================= */
-function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPermission, onResetCampaign, onLogout }) {
+function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, onLogout }) {
   const [viewerPwDraft, setViewerPwDraft] = useState(config.viewerPassword || "");
-  const [alarmDraft, setAlarmDraft] = useState(config.alarmTime || "");
-  const [ringtoneDraft, setRingtoneDraft] = useState(config.alarmRingtone || "beep");
   const [thresholdDraft, setThresholdDraft] = useState(config.threshold);
 
   // flat list of every editable task, tagged with which category it lives in
@@ -1264,6 +1305,7 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
     }
     return flat;
   });
+  const [newTask, setNewTask] = useState({ name: "", xp: 5, catKey: "strength" });
   const [skillDrafts, setSkillDrafts] = useState(() => ({
     driving: { name: "Driving", xp: config.skillXP?.driving ?? 3 },
     bookLHN: { name: config.bookNames?.bookLHN ?? "Book 1", xp: config.skillXP?.bookLHN ?? 2 },
@@ -1281,10 +1323,18 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
     }
     const nextTasks = { ...config.tasks };
     for (const catKey of Object.keys(nextTasks)) {
-      if (byCategory[catKey]) nextTasks[catKey] = { ...nextTasks[catKey], tasks: byCategory[catKey] };
+      nextTasks[catKey] = { ...nextTasks[catKey], tasks: byCategory[catKey] || [] };
     }
     patchConfig({ tasks: nextTasks });
   };
+
+  const addTask = () => {
+    if (!newTask.name.trim()) return;
+    setTaskDrafts((prev) => [...prev, { id: `t_${uid()}`, name: newTask.name.trim(), xp: Number(newTask.xp) || 1, catKey: newTask.catKey }]);
+    setNewTask({ name: "", xp: 5, catKey: newTask.catKey });
+  };
+
+  const deleteTask = (idx) => setTaskDrafts((prev) => prev.filter((_, i) => i !== idx));
 
   const saveSkills = () => {
     patchConfig({
@@ -1358,30 +1408,6 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
         </div>
       </div>
 
-      <div className="section-title">Alarm</div>
-      <div className="card">
-        <div className="small-muted">
-          Set a daily wake alarm with a ringtone. It fires while ASCEND is open — install it as an app (see the Install prompt) and allow notifications so it can still nudge you when the tab isn't in front, though true OS-level background alarms aren't possible from a web app.
-        </div>
-        <div className="field-row">
-          <input type="time" value={alarmDraft} disabled={!isOwner} onChange={(e) => setAlarmDraft(e.target.value)} />
-        </div>
-        <div className="small-muted" style={{ marginTop: 10 }}>Ringtone</div>
-        <div className="field-row">
-          <select value={ringtoneDraft} disabled={!isOwner} onChange={(e) => setRingtoneDraft(e.target.value)}>
-            {RINGTONES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-          </select>
-        </div>
-        <div style={{ textAlign: "right", marginTop: 8 }}>
-          <button
-            className="btn sm" disabled={!isOwner}
-            onClick={() => { patchConfig({ alarmTime: alarmDraft, alarmRingtone: ringtoneDraft }); onRequestNotifPermission(); }}
-          >
-            Save
-          </button>
-        </div>
-      </div>
-
       <div className="section-title">Campaign</div>
       <div className="card">
         <div className="small-muted">Campaign start: 17 Aug 2026 (fixed).</div>
@@ -1399,7 +1425,7 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
 
       <div className="section-title">Tasks</div>
       <div className="card">
-        <div className="small-muted" style={{ marginBottom: 8 }}>Any task name or XP value can be changed here.</div>
+        <div className="small-muted" style={{ marginBottom: 8 }}>Any task name or XP value can be changed here. You can also add new tasks or delete existing ones.</div>
         {taskDrafts.map((tk, idx) => (
           <div className="edit-task-row" key={tk.id}>
             <input
@@ -1410,12 +1436,35 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
               type="number" value={tk.xp} disabled={!isOwner}
               onChange={(e) => setTaskDrafts((prev) => prev.map((x, i) => (i === idx ? { ...x, xp: Number(e.target.value) || 1 } : x)))}
             />
+            {isOwner && (
+              <button className="iconbtn" title="Delete task" onClick={() => deleteTask(idx)}>✕</button>
+            )}
           </div>
         ))}
         {isOwner && (
-          <div style={{ textAlign: "right", marginTop: 8 }}>
-            <button className="btn sm" onClick={saveTasks}>Save</button>
-          </div>
+          <>
+            <div className="edit-task-row" style={{ borderBottom: "none", marginTop: 6 }}>
+              <input
+                type="text" placeholder="New task name" value={newTask.name}
+                onChange={(e) => setNewTask((s) => ({ ...s, name: e.target.value }))}
+              />
+              <input
+                type="number" value={newTask.xp}
+                onChange={(e) => setNewTask((s) => ({ ...s, xp: Number(e.target.value) || 1 }))}
+              />
+            </div>
+            <div className="field-row" style={{ marginTop: 4 }}>
+              <select value={newTask.catKey} onChange={(e) => setNewTask((s) => ({ ...s, catKey: e.target.value }))}>
+                <option value="strength">Strength</option>
+                <option value="intellect">Intellect</option>
+                <option value="discipline">Discipline</option>
+              </select>
+              <button className="btn sm" onClick={addTask}>+ Add Task</button>
+            </div>
+            <div style={{ textAlign: "right", marginTop: 10 }}>
+              <button className="btn sm" onClick={saveTasks}>Save</button>
+            </div>
+          </>
         )}
       </div>
 
@@ -1449,26 +1498,45 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onRequestNotifPer
 }
 
 /* ============================= SPARKLE LAYER ============================= */
-function SparkleLayer({ celebration }) {
-  const sparkles = useMemo(() => {
-    const emojis = celebration ? ["🏆", "✨", "⭐", "🎉", "💛"] : ["🐱", "✨", "💖", "🌸", "⭐"];
-    return Array.from({ length: 14 }).map((_, i) => ({
-      key: i,
-      emoji: emojis[i % emojis.length],
-      left: Math.random() * 100,
-      duration: 8 + Math.random() * 10,
-      delay: Math.random() * 10,
-      size: 14 + Math.random() * 14,
-    }));
-  }, [celebration]);
+// Ambient particles that make each theme visibly *look* like its name across
+// the whole app — not just as a tiny picker icon.
+function themeParticles(theme, celebration) {
+  if (celebration) return { glyphs: ["🏆", "✨", "⭐", "🎉", "💛"], anim: "float" };
+  switch (theme) {
+    case "catmeme": return { glyphs: ["🐱", "✨", "💖", "🌸", "⭐"], anim: "float" };
+    case "dark": return { glyphs: ["✨", "⭐", "🌙"], anim: "twinkleDrift" };
+    case "light": return { glyphs: ["☀️", "☁️"], anim: "drift" };
+    case "cyber": return { glyphs: ["◆", "▲", "●"], anim: "fall" };
+    case "forest": return { glyphs: ["🍃", "🌿", "🍂"], anim: "fall" };
+    default: return { glyphs: ["✨"], anim: "float" };
+  }
+}
+function SparkleLayer({ theme, celebration }) {
+  const { glyphs, anim } = useMemo(() => themeParticles(theme, celebration), [theme, celebration]);
+  const particles = useMemo(() => {
+    return Array.from({ length: 14 }).map((_, i) => {
+      const glyph = glyphs[i % glyphs.length];
+      const size = 14 + Math.random() * 14;
+      if (anim === "drift") {
+        return { key: i, glyph, size, duration: 14 + Math.random() * 12, delay: Math.random() * 14, style: { top: `${5 + Math.random() * 45}%`, left: "-10%" }, cls: "drift" };
+      }
+      if (anim === "fall") {
+        return { key: i, glyph, size, duration: 8 + Math.random() * 8, delay: Math.random() * 10, style: { left: `${Math.random() * 100}%`, top: "-40px" }, cls: "fall" };
+      }
+      if (anim === "twinkleDrift") {
+        return { key: i, glyph, size: size * 0.7, duration: 1.4 + Math.random() * 1.8, delay: Math.random() * 3, style: { top: `${Math.random() * 90}%`, left: `${Math.random() * 100}%` }, cls: "twinkleDrift" };
+      }
+      return { key: i, glyph, size, duration: 8 + Math.random() * 10, delay: Math.random() * 10, style: { left: `${Math.random() * 100}%`, bottom: "-40px" }, cls: "float" };
+    });
+  }, [glyphs, anim]);
   return (
     <div className="sparkle-layer">
-      {sparkles.map((s) => (
+      {particles.map((p) => (
         <span
-          key={s.key}
-          style={{ left: `${s.left}%`, animationDuration: `${s.duration}s`, animationDelay: `${s.delay}s`, fontSize: s.size }}
+          key={p.key} className={p.cls}
+          style={{ ...p.style, fontSize: p.size, animationDuration: `${p.duration}s`, animationDelay: `${p.delay}s` }}
         >
-          {s.emoji}
+          {p.glyph}
         </span>
       ))}
     </div>
@@ -1622,50 +1690,6 @@ export default function App() {
 
   useEffect(() => { if (loaded) checkPenaltyAutoLog(); }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ---- alarm ---- */
-  const beep = (ringtone = "beep") => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      g.gain.setValueAtTime(0.001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
-      if (ringtone === "chime") { o.type = "triangle"; o.frequency.value = 660; }
-      else if (ringtone === "siren") { o.type = "sawtooth"; o.frequency.value = 500; }
-      else { o.type = "sine"; o.frequency.value = 880; }
-      o.start();
-      if (ringtone === "siren") {
-        let f = 500, up = true;
-        const iv = setInterval(() => { f = up ? f + 60 : f - 60; if (f > 1100) up = false; if (f < 500) up = true; o.frequency.setValueAtTime(f, ctx.currentTime); }, 120);
-        setTimeout(() => clearInterval(iv), 2200);
-      }
-      for (let i = 0; i < 4; i++) {
-        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25 + i * 0.5);
-        g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.35 + i * 0.5);
-      }
-      o.stop(ctx.currentTime + 2.2);
-    } catch (e) {}
-  };
-  const requestNotifPermission = () => {
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
-  };
-  useEffect(() => {
-    const iv = setInterval(() => {
-      if (!config.alarmTime) return;
-      const now = new Date();
-      const hhmm = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
-      const todayKey = todayStr() + "_" + config.alarmTime;
-      if (hhmm === config.alarmTime && config.lastAlarmFired !== todayKey) {
-        setConfig((prev) => ({ ...prev, lastAlarmFired: todayKey }));
-        beep(config.alarmRingtone);
-        if ("Notification" in window && Notification.permission === "granted") {
-          try { new Notification("ASCEND", { body: "Wake up. The campaign doesn't pause.", icon: "icon-192.png" }); } catch (e) {}
-        }
-      }
-    }, 15000);
-    return () => clearInterval(iv);
-  }, [config.alarmTime, config.lastAlarmFired, config.alarmRingtone]);
-
   /* ---- PWA install prompt + service worker ---- */
   useEffect(() => {
     const onBeforeInstall = (e) => { e.preventDefault(); setInstallEvent(e); };
@@ -1712,7 +1736,7 @@ export default function App() {
       style={{ "--accent": config.accent, "--accent2": config.accent }}
     >
       <style>{STYLES}</style>
-      <SparkleLayer celebration={gameCompleted} />
+      <SparkleLayer theme={config.theme} celebration={gameCompleted} />
       <div className="app">
         <div className={`ptr ${ptrSpin ? "spin" : ""} ${ptrY <= -50 ? "hidden" : ""}`} style={{ top: ptrY }}>🔄</div>
 
@@ -1754,7 +1778,6 @@ export default function App() {
                   {activeTab === "settings" && (
                     <SettingsTab
                       config={config} setConfig={setConfig} isOwner={isOwner} setIsOwner={setIsOwner}
-                      onRequestNotifPermission={requestNotifPermission}
                       onResetCampaign={() => setConfig((prev) => ({ ...prev, started: false }))}
                       onLogout={() => { setAuthRole(null); setIsOwner(false); lsSet(LS_KEYS.auth, null); }}
                     />
