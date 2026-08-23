@@ -123,23 +123,35 @@ const DEFAULT_CONFIG = {
 };
 
 /* ============================= UTIL ============================= */
-function todayStr(d = new Date()) {
-  // Local-date formatting (NOT toISOString, which is UTC and rolls the date
-  // back a day for IST — that off-by-one was why the calendar didn't line
-  // up with Monday).
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+function todayStr(baseDate) {
+  // "Now", anchored to India Standard Time (UTC+5:30, no DST) — NOT the
+  // device's own clock/timezone. getTime() is always an absolute UTC epoch
+  // regardless of device settings, so shifting it by +5:30 and reading the
+  // UTC fields back out gives the correct IST calendar date on any device,
+  // anywhere in the world.
+  const now = baseDate || new Date();
+  const ist = new Date(now.getTime() + 5.5 * 3600000);
+  const y = ist.getUTCFullYear();
+  const m = String(ist.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(ist.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+// Pure calendar-date arithmetic on YYYY-MM-DD strings, done entirely in UTC
+// so it never depends on (or is thrown off by) the device's timezone.
 function addDays(str, n) {
-  const d = new Date(str + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return todayStr(d);
+  const [y, m, d] = str.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }
 function weekOf(dateStr, startDate) {
-  const a = new Date(startDate + "T00:00:00"), b = new Date(dateStr + "T00:00:00");
-  const diff = Math.floor((b - a) / 86400000);
+  const [ay, am, ad] = startDate.split("-").map(Number);
+  const [by, bm, bd] = dateStr.split("-").map(Number);
+  const a = Date.UTC(ay, am - 1, ad), b = Date.UTC(by, bm - 1, bd);
+  const diff = Math.round((b - a) / 86400000);
   return Math.max(1, Math.floor(diff / 7) + 1);
 }
 function weekStartDate(startDate, weekNum) {
@@ -151,8 +163,10 @@ function clamp(v, lo, hi) {
 function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
-function fmtDate(d) {
-  return new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+function fmtDate(dstr) {
+  const [y, m, d] = dstr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 }
 
 /* ============================= LOCAL STORAGE ============================= */
@@ -293,6 +307,18 @@ function categoryCampaignPct(days, cat) {
     for (const t of cat.tasks) if (d.tasksDone && d.tasksDone[t.id]) earned += t.xp;
   }
   const max = catMaxXP * CAMPAIGN_DAYS;
+  return max ? clamp(earned / max, 0, 1) : 0;
+}
+// Skills is achievement-based (driving + the 3 books), not day-by-day —
+// its "campaign %" is simply how much of its total XP pool has been earned.
+function skillsPct(config, achievements) {
+  const sx = config.skillXP || DEFAULT_SKILL_XP;
+  const max = (sx.driving || 0) + (sx.bookLHN || 0) + (sx.bookAH || 0) + (sx.bookNew || 0);
+  const earned =
+    (achievements.driving ? sx.driving : 0) +
+    (achievements.bookLHN ? sx.bookLHN : 0) +
+    (achievements.bookAH ? sx.bookAH : 0) +
+    (achievements.bookNew ? sx.bookNew : 0);
   return max ? clamp(earned / max, 0, 1) : 0;
 }
 
@@ -569,14 +595,14 @@ function Ring({ pct, size = 64 }) {
   );
 }
 
-function TaskRow({ id, name, xp, done, onToggle, disabled }) {
+function TaskRow({ id, name, xp, done, onToggle, disabled, unit = "XP" }) {
   return (
     <div className={`task-row ${done ? "done" : ""}`}>
       <div className={`chk ${done ? "on" : ""}`} onClick={disabled ? undefined : onToggle}>
         {done ? "✓" : ""}
       </div>
       <div className="task-name">{name}</div>
-      {xp !== null && <div className="task-xp">{xp} XP</div>}
+      {xp !== null && <div className="task-xp">{xp} {unit}</div>}
     </div>
   );
 }
@@ -668,7 +694,7 @@ const SYNC_LABEL = {
   offline: "📴 Offline — saved on this device",
   error: "⚠️ Sync error — saved on this device",
 };
-function Hud({ score, rank, celebrating, syncStatus, showBadge, gameCompleted }) {
+function Hud({ score, rank, syncStatus, showBadge, gameCompleted }) {
   return (
     <div className="hud">
       <div className="hud-top">
@@ -699,16 +725,6 @@ function Hud({ score, rank, celebrating, syncStatus, showBadge, gameCompleted })
           <div>Game completed successfully</div>
           <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9, marginTop: 2 }}>
             Rank S+ reached. The Final Ascent is complete.
-          </div>
-        </div>
-      )}
-      {!gameCompleted && celebrating && (
-        <div className="celebrate">
-          <span className="pop" style={{ left: "8%", top: 6 }}>🎉</span>
-          <span className="pop" style={{ right: "8%", top: 6, animationDelay: ".3s" }}>🎊</span>
-          <div>RANK UP! Welcome to {rank.name}-Rank 🏆</div>
-          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9, marginTop: 2 }}>
-            A milestone was auto-completed for you. Celebration active for 12 hours.
           </div>
         </div>
       )}
@@ -847,12 +863,19 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
   const sel = selectedDate;
   const rec = days[sel] || { tasksDone: {}, protein: 0, leave: false, leaveOrdinary: false, hardMode: {} };
 
+  const currentWeekN = clamp(weekOf(t, config.startDate), 1, 33);
+  const [viewWeekN, setViewWeekN] = useState(currentWeekN);
+
   const [proteinDraft, setProteinDraft] = useState(rec.protein || "");
+  const [chaptersDraft, setChaptersDraft] = useState(rec.chaptersLog || "");
+  const [questionsDraft, setQuestionsDraft] = useState(rec.questions || "");
   const [plannerDraft, setPlannerDraft] = useState(plans[addDays(t, 1)] || "");
 
   useEffect(() => {
     const r = days[sel] || {};
     setProteinDraft(r.protein || "");
+    setChaptersDraft(r.chaptersLog || "");
+    setQuestionsDraft(r.questions || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sel]);
 
@@ -875,14 +898,15 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
   const plannerText = plans[addDays(t, 1)] || "";
   const plannerCount = plannerText.trim() ? plannerText.trim().split(/\n+/).filter(Boolean).length : 0;
 
-  const weekN = clamp(weekOf(sel, config.startDate), 1, 33);
-  const wStart = weekStartDate(config.startDate, weekN);
+  const wStart = weekStartDate(config.startDate, viewWeekN);
   const paidLeaveCount = Object.values(days).filter((d) => d.leave).length;
   const leaveCount = Object.values(days).filter((d) => d.leaveOrdinary).length;
 
   const dailyTasks = flatDailyTasks(config);
-  // A miss only adds Hard Mode tasks starting the NEXT day, never same-day.
-  const penaltyActive = penaltyLevelForDate(days, config, sel) === 5;
+  // A miss only adds Hard Mode tasks starting the NEXT day, never same-day —
+  // and once every one of them is checked off, the section disappears.
+  const hardModeAllDone = HARD_MODE_TASKS.every((h) => !!rec.hardMode?.[h.id]);
+  const penaltyActive = penaltyLevelForDate(days, config, sel) === 5 && !hardModeAllDone;
   const recapDone = dailyTasks.filter((tk) => !!rec.tasksDone[tk.id]);
   const recapPlan = plans[sel] || "";
 
@@ -951,6 +975,24 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
               <div className="small-muted">Nothing marked done yet.</div>
             )}
           </div>
+          <div className="small-muted" style={{ marginTop: 14 }}>Chapters done on {fmtDate(sel)}</div>
+          <textarea
+            placeholder="e.g. Physics Ch.5 — Rotational Motion" disabled={!isOwner}
+            value={chaptersDraft} onChange={(e) => setChaptersDraft(e.target.value)}
+          />
+          <div style={{ textAlign: "right", marginTop: 6 }}>
+            <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ chaptersLog: chaptersDraft })}>Save</button>
+          </div>
+          <div className="small-muted" style={{ marginTop: 14 }}>Questions done on {fmtDate(sel)}</div>
+          <div className="field-row">
+            <input
+              type="number" placeholder="No. of questions" value={questionsDraft} disabled={!isOwner}
+              onChange={(e) => setQuestionsDraft(e.target.value)}
+            />
+            <button className="btn sm" disabled={!isOwner} onClick={() => updateRec({ questions: Number(questionsDraft) || 0 })}>
+              Log
+            </button>
+          </div>
         </div>
       )}
 
@@ -973,12 +1015,12 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
         </div>
       )}
 
-      <div className="section-title">Week {weekN} Calendar</div>
+      <div className="section-title">Week {viewWeekN} Calendar</div>
       <div className="card">
         <div className="week-nav">
-          <button className="btn ghost sm" disabled>←</button>
-          <b>Week {weekN}</b>
-          <button className="btn ghost sm" disabled>→</button>
+          <button className="btn ghost sm" disabled={viewWeekN <= 1} onClick={() => setViewWeekN((w) => clamp(w - 1, 1, currentWeekN))}>←</button>
+          <b>Week {viewWeekN}</b>
+          <button className="btn ghost sm" disabled={viewWeekN >= currentWeekN} onClick={() => setViewWeekN((w) => clamp(w + 1, 1, currentWeekN))}>→</button>
         </div>
         <div className="dots">
           {Array.from({ length: 7 }).map((_, i) => {
@@ -998,11 +1040,11 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
             );
           })}
         </div>
-        <div className="small-muted" style={{ marginTop: 10 }}>🟢 sufficient XP · 🟡 paid leave · 🔵 leave · 🔴 insufficient XP</div>
+        <div className="small-muted" style={{ marginTop: 10 }}>🟢 sufficient XP · 🟡 paid leave · 🔵 leave · 🔴 insufficient XP · ring = today (IST)</div>
         {sel !== t && (
           <div className="day-header" style={{ marginTop: 10 }}>
-            <span className="small-muted">Viewing {fmtDate(sel)} — everything planned and done that day is in Daily Recap above</span>
-            <button className="btn ghost sm" onClick={() => setSelectedDate(t)}>Back to today</button>
+            <span className="small-muted">Viewing &amp; editing {fmtDate(sel)} — everything planned and done that day is in Daily Recap above</span>
+            <button className="btn ghost sm" onClick={() => { setSelectedDate(t); setViewWeekN(currentWeekN); }}>Back to today</button>
           </div>
         )}
         {isOwner && (
@@ -1055,15 +1097,15 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
       <div className="card">
         <div className="small-muted" style={{ marginBottom: 6 }}>One toggle per arc — mark it when that arc's weight-loss goal is hit.</div>
         <TaskRow
-          name="Weight loss — Arc I" xp={config.weightLossXP?.arcI ?? 5} done={!!achievements.weightLossArcI} disabled={!isOwner}
+          name="Weight loss — Arc I" xp={config.weightLossXP?.arcI ?? 5} unit="pts" done={!!achievements.weightLossArcI} disabled={!isOwner}
           onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, weightLossArcI: !p.weightLossArcI })); onAfterTaskToggle(); }}
         />
         <TaskRow
-          name="Weight loss — Arc II" xp={config.weightLossXP?.arcII ?? 5} done={!!achievements.weightLossArcII} disabled={!isOwner}
+          name="Weight loss — Arc II" xp={config.weightLossXP?.arcII ?? 5} unit="pts" done={!!achievements.weightLossArcII} disabled={!isOwner}
           onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, weightLossArcII: !p.weightLossArcII })); onAfterTaskToggle(); }}
         />
         <TaskRow
-          name="Weight loss — Arc III" xp={config.weightLossXP?.arcIII ?? 5} done={!!achievements.weightLossArcIII} disabled={!isOwner}
+          name="Weight loss — Arc III" xp={config.weightLossXP?.arcIII ?? 5} unit="pts" done={!!achievements.weightLossArcIII} disabled={!isOwner}
           onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, weightLossArcIII: !p.weightLossArcIII })); onAfterTaskToggle(); }}
         />
       </div>
@@ -1079,8 +1121,12 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
             </div>
           );
         })}
+        <div className="aspect-mini" onClick={() => setOpenAspect((a) => (a === "skills" ? null : "skills"))}>
+          <Ring pct={skillsPct(config, achievements)} size={48} />
+          <div className="name">🎓 Skills</div>
+        </div>
       </div>
-      {openAspect && (
+      {openAspect && openAspect !== "skills" && (
         <div className="card" id="aspect-detail" style={{ marginTop: 12 }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>
             {config.tasks[openAspect].icon} {config.tasks[openAspect].label}
@@ -1090,26 +1136,27 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
           ))}
         </div>
       )}
-
-      <div className="section-title">Skills</div>
-      <div className="card">
-        <TaskRow
-          name="Driving" xp={config.skillXP?.driving ?? 3} done={!!achievements.driving} disabled={!isOwner}
-          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, driving: !p.driving })); onAfterTaskToggle(); }}
-        />
-        <TaskRow
-          name={`${config.bookNames?.bookLHN ?? "Book 1"} (Arc II)`} xp={config.skillXP?.bookLHN ?? 2} done={!!achievements.bookLHN} disabled={!isOwner}
-          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookLHN: !p.bookLHN })); onAfterTaskToggle(); }}
-        />
-        <TaskRow
-          name={`${config.bookNames?.bookAH ?? "Book 2"} (Arc I)`} xp={config.skillXP?.bookAH ?? 2} done={!!achievements.bookAH} disabled={!isOwner}
-          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookAH: !p.bookAH })); onAfterTaskToggle(); }}
-        />
-        <TaskRow
-          name={`${config.bookNames?.bookNew ?? "Book 3"} (Arc III)`} xp={config.skillXP?.bookNew ?? 2} done={!!achievements.bookNew} disabled={!isOwner}
-          onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookNew: !p.bookNew })); onAfterTaskToggle(); }}
-        />
-      </div>
+      {openAspect === "skills" && (
+        <div className="card" id="aspect-detail" style={{ marginTop: 12 }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>🎓 Skills</div>
+          <TaskRow
+            name="Driving" xp={config.skillXP?.driving ?? 3} done={!!achievements.driving} disabled={!isOwner}
+            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, driving: !p.driving })); onAfterTaskToggle(); }}
+          />
+          <TaskRow
+            name={`${config.bookNames?.bookLHN ?? "Book 1"} (Arc II)`} xp={config.skillXP?.bookLHN ?? 2} done={!!achievements.bookLHN} disabled={!isOwner}
+            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookLHN: !p.bookLHN })); onAfterTaskToggle(); }}
+          />
+          <TaskRow
+            name={`${config.bookNames?.bookAH ?? "Book 2"} (Arc I)`} xp={config.skillXP?.bookAH ?? 2} done={!!achievements.bookAH} disabled={!isOwner}
+            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookAH: !p.bookAH })); onAfterTaskToggle(); }}
+          />
+          <TaskRow
+            name={`${config.bookNames?.bookNew ?? "Book 3"} (Arc III)`} xp={config.skillXP?.bookNew ?? 2} done={!!achievements.bookNew} disabled={!isOwner}
+            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookNew: !p.bookNew })); onAfterTaskToggle(); }}
+          />
+        </div>
+      )}
     </>
   );
 }
@@ -1202,8 +1249,11 @@ function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner
   const history = penaltyLog.slice(-15).reverse();
   const t = todayStr();
   const rec = days[t] || { hardMode: {} };
-  // Actionable checklist only activates the day AFTER misses cross the threshold.
+  // Actionable checklist only activates the day AFTER misses cross the threshold,
+  // and hides itself once every Hard Mode task for today is checked off.
   const effectiveLevel = penaltyLevelForDate(days, config, t);
+  const hardModeAllDone = HARD_MODE_TASKS.every((h) => !!rec.hardMode?.[h.id]);
+  const hardModeShowing = effectiveLevel === 5 && !hardModeAllDone;
 
   const toggleHardMode = (id) => {
     if (!isOwner) return;
@@ -1224,14 +1274,14 @@ function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner
         <div className="pen-meter">
           {[1, 2, 3, 4, 5].map((n) => <div key={n} className={`seg ${misses >= n ? "on" : ""}`} />)}
         </div>
-        {pen.level === 5 && effectiveLevel < 5 && (
+        {pen.level === 5 && !hardModeShowing && effectiveLevel < 5 && (
           <div className="small-muted" style={{ marginTop: 10, fontWeight: 500 }}>
             Hard Mode tasks start showing tomorrow, not today.
           </div>
         )}
       </div>
 
-      {effectiveLevel === 5 && (
+      {hardModeShowing && (
         <>
           <div className="section-title">
             Hard Mode Protocol <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>active — 3 days</span>
@@ -1651,7 +1701,6 @@ export default function App() {
   const rank = useMemo(() => rankFor(score, achievements.finalAscent), [score, achievements.finalAscent]);
   const arcLabel = currentArcLabel(config);
   currentArcLabel.__lastLabel = `${arcLabel} · Week ${currentWeek(config)} / 33`;
-  const celebrating = Date.now() < (config.celebrationUntil || 0);
   const gameCompleted = !!config.gameCompleted;
 
   /* ---- rank-up auto-check ---- */
@@ -1667,7 +1716,7 @@ export default function App() {
         next[nextMs] = true;
         return { ...prev, milestones: next };
       });
-      setConfig((prev) => ({ ...prev, lastRankTier: tier, celebrationUntil: Date.now() + 12 * 3600 * 1000 }));
+      setConfig((prev) => ({ ...prev, lastRankTier: tier }));
     }
   }, [days, config, achievements]);
 
@@ -1749,7 +1798,7 @@ export default function App() {
           </div>
         ) : (
           <>
-            <Hud score={score} rank={rank} celebrating={celebrating} syncStatus={syncStatus} showBadge={activeTab === "home"} gameCompleted={gameCompleted} />
+            <Hud score={score} rank={rank} syncStatus={syncStatus} showBadge={activeTab === "home"} gameCompleted={gameCompleted} />
             <div
               className="scroll" id="page" ref={scrollRef}
               onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
