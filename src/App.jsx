@@ -115,7 +115,7 @@ const DEFAULT_WEIGHTLOSS_XP = { arcI: 5, arcII: 5, arcIII: 5 };
 
 const DEFAULT_CONFIG = {
   theme: "catmeme", accent: "#ff5fa8", threshold: 70,
-  startDate: CAMPAIGN_START, started: false,
+  started: false,
   pinSet: false, pin: "", viewerPassword: "", loginLog: [],
   lastRankTier: 0, celebrationUntil: 0, gameCompleted: false,
   weightLossXP: DEFAULT_WEIGHTLOSS_XP, skillXP: DEFAULT_SKILL_XP, bookNames: DEFAULT_BOOK_NAMES,
@@ -252,7 +252,7 @@ function finalScore(days, config, achievements) {
   );
 }
 function currentWeek(config) {
-  return clamp(weekOf(todayStr(), config.startDate), 1, 33);
+  return clamp(weekOf(todayStr(), CAMPAIGN_START), 1, 33);
 }
 function currentArcLabel(config) {
   const w = currentWeek(config);
@@ -261,7 +261,7 @@ function currentArcLabel(config) {
   return "Arc III — Ascension";
 }
 function weekMissCount(days, taskDefs, config, weekNum, uptoExclusive) {
-  const start = weekStartDate(config.startDate, weekNum);
+  const start = weekStartDate(CAMPAIGN_START, weekNum);
   const limit = uptoExclusive || addDays(todayStr(), 1); // default: include today
   let misses = 0;
   for (let i = 0; i < 7; i++) {
@@ -286,7 +286,7 @@ function penaltyForMisses(n) {
 // never the same day you missed. Computed by excluding `dateStr` itself from
 // the week's miss count.
 function penaltyLevelForDate(days, config, dateStr) {
-  const wk = clamp(weekOf(dateStr, config.startDate), 1, 33);
+  const wk = clamp(weekOf(dateStr, CAMPAIGN_START), 1, 33);
   const misses = weekMissCount(days, config.tasks, config, wk, dateStr);
   return penaltyForMisses(misses).level;
 }
@@ -309,18 +309,7 @@ function categoryCampaignPct(days, cat) {
   const max = catMaxXP * CAMPAIGN_DAYS;
   return max ? clamp(earned / max, 0, 1) : 0;
 }
-// Skills is achievement-based (driving + the 3 books), not day-by-day —
-// its "campaign %" is simply how much of its total XP pool has been earned.
-function skillsPct(config, achievements) {
-  const sx = config.skillXP || DEFAULT_SKILL_XP;
-  const max = (sx.driving || 0) + (sx.bookLHN || 0) + (sx.bookAH || 0) + (sx.bookNew || 0);
-  const earned =
-    (achievements.driving ? sx.driving : 0) +
-    (achievements.bookLHN ? sx.bookLHN : 0) +
-    (achievements.bookAH ? sx.bookAH : 0) +
-    (achievements.bookNew ? sx.bookNew : 0);
-  return max ? clamp(earned / max, 0, 1) : 0;
-}
+
 
 /* ============================= STYLES ============================= */
 const STYLES = `
@@ -863,7 +852,7 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
   const sel = selectedDate;
   const rec = days[sel] || { tasksDone: {}, protein: 0, leave: false, leaveOrdinary: false, hardMode: {} };
 
-  const currentWeekN = clamp(weekOf(t, config.startDate), 1, 33);
+  const currentWeekN = clamp(weekOf(t, CAMPAIGN_START), 1, 33);
   const [viewWeekN, setViewWeekN] = useState(currentWeekN);
 
   const [proteinDraft, setProteinDraft] = useState(rec.protein || "");
@@ -898,7 +887,7 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
   const plannerText = plans[addDays(t, 1)] || "";
   const plannerCount = plannerText.trim() ? plannerText.trim().split(/\n+/).filter(Boolean).length : 0;
 
-  const wStart = weekStartDate(config.startDate, viewWeekN);
+  const wStart = weekStartDate(CAMPAIGN_START, viewWeekN);
   const paidLeaveCount = Object.values(days).filter((d) => d.leave).length;
   const leaveCount = Object.values(days).filter((d) => d.leaveOrdinary).length;
 
@@ -1121,12 +1110,8 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
             </div>
           );
         })}
-        <div className="aspect-mini" onClick={() => setOpenAspect((a) => (a === "skills" ? null : "skills"))}>
-          <Ring pct={skillsPct(config, achievements)} size={48} />
-          <div className="name">🎓 Skills</div>
-        </div>
       </div>
-      {openAspect && openAspect !== "skills" && (
+      {openAspect && (
         <div className="card" id="aspect-detail" style={{ marginTop: 12 }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>
             {config.tasks[openAspect].icon} {config.tasks[openAspect].label}
@@ -1134,27 +1119,27 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
           {config.tasks[openAspect].tasks.map((tk) => (
             <TaskRowStatic key={tk.id} name={tk.name} xp={tk.xp} />
           ))}
-        </div>
-      )}
-      {openAspect === "skills" && (
-        <div className="card" id="aspect-detail" style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>🎓 Skills</div>
-          <TaskRow
-            name="Driving" xp={config.skillXP?.driving ?? 3} done={!!achievements.driving} disabled={!isOwner}
-            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, driving: !p.driving })); onAfterTaskToggle(); }}
-          />
-          <TaskRow
-            name={`${config.bookNames?.bookLHN ?? "Book 1"} (Arc II)`} xp={config.skillXP?.bookLHN ?? 2} done={!!achievements.bookLHN} disabled={!isOwner}
-            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookLHN: !p.bookLHN })); onAfterTaskToggle(); }}
-          />
-          <TaskRow
-            name={`${config.bookNames?.bookAH ?? "Book 2"} (Arc I)`} xp={config.skillXP?.bookAH ?? 2} done={!!achievements.bookAH} disabled={!isOwner}
-            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookAH: !p.bookAH })); onAfterTaskToggle(); }}
-          />
-          <TaskRow
-            name={`${config.bookNames?.bookNew ?? "Book 3"} (Arc III)`} xp={config.skillXP?.bookNew ?? 2} done={!!achievements.bookNew} disabled={!isOwner}
-            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookNew: !p.bookNew })); onAfterTaskToggle(); }}
-          />
+          {openAspect === "discipline" && (
+            <>
+              <div className="task-group-title">Skills</div>
+              <TaskRow
+                name="Driving" xp={config.skillXP?.driving ?? 3} done={!!achievements.driving} disabled={!isOwner}
+                onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, driving: !p.driving })); onAfterTaskToggle(); }}
+              />
+              <TaskRow
+                name={`${config.bookNames?.bookLHN ?? "Book 1"} (Arc II)`} xp={config.skillXP?.bookLHN ?? 2} done={!!achievements.bookLHN} disabled={!isOwner}
+                onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookLHN: !p.bookLHN })); onAfterTaskToggle(); }}
+              />
+              <TaskRow
+                name={`${config.bookNames?.bookAH ?? "Book 2"} (Arc I)`} xp={config.skillXP?.bookAH ?? 2} done={!!achievements.bookAH} disabled={!isOwner}
+                onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookAH: !p.bookAH })); onAfterTaskToggle(); }}
+              />
+              <TaskRow
+                name={`${config.bookNames?.bookNew ?? "Book 3"} (Arc III)`} xp={config.skillXP?.bookNew ?? 2} done={!!achievements.bookNew} disabled={!isOwner}
+                onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookNew: !p.bookNew })); onAfterTaskToggle(); }}
+              />
+            </>
+          )}
         </div>
       )}
     </>
