@@ -94,6 +94,18 @@ const DEFAULT_TASKS = {
     ],
   },
 };
+const TASK_CATEGORY_KEYS = ["strength", "intellect", "discipline"];
+// Strip any stray/legacy category (e.g. an old "skills" category from a
+// previous version) out of synced/stored data — only these 3 are ever valid.
+// Without this, stale data saved before Skills became achievement-only can
+// silently reappear as a phantom 4th category and duplicate the Skills tile.
+function sanitizeTasks(tasks) {
+  const clean = {};
+  for (const key of TASK_CATEGORY_KEYS) {
+    clean[key] = (tasks && tasks[key]) || DEFAULT_TASKS[key];
+  }
+  return clean;
+}
 
 /* -- achievements: chapters + weight-loss-per-arc (25 pts) + milestones/skills (15 pts) -- */
 const DEFAULT_ACH = {
@@ -1643,7 +1655,10 @@ export default function App() {
 
   /* ---- load from localStorage on mount ---- */
   useEffect(() => {
-    setConfig((prev) => ({ ...prev, ...lsGet(LS_KEYS.config, {}) }));
+    setConfig((prev) => {
+      const merged = { ...prev, ...lsGet(LS_KEYS.config, {}) };
+      return { ...merged, tasks: sanitizeTasks(merged.tasks) };
+    });
     setAchievements((prev) => ({ ...prev, ...lsGet(LS_KEYS.achievements, {}) }));
     setDays(lsGet(LS_KEYS.days, {}));
     setPlans(lsGet(LS_KEYS.plans, {}));
@@ -1674,7 +1689,10 @@ export default function App() {
           if (!dirtyRef.current) {
             const data = snap.data();
             applyingRemoteRef.current = true;
-            setConfig((prev) => ({ ...prev, ...(data.config || {}) }));
+            setConfig((prev) => {
+              const merged = { ...prev, ...(data.config || {}) };
+              return { ...merged, tasks: sanitizeTasks(merged.tasks) };
+            });
             setAchievements((prev) => ({ ...DEFAULT_ACH, ...(data.achievements || {}) }));
             setDays(data.days || {});
             setPlans(data.plans || {});
