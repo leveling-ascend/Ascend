@@ -86,7 +86,7 @@ const DEFAULT_TASKS = {
     label: "Discipline", icon: "🔥",
     tasks: [
       { id: "water", name: "Adequate water", xp: 11 },
-      { id: "wake", name: "Wake at 8:00 AM", xp: 8 },
+      { id: "wake", name: "Wake at 7:00 AM", xp: 8 },
       { id: "skincare", name: "Skincare", xp: 4 },
       { id: "haircare", name: "Hair care", xp: 3 },
       { id: "brush", name: "Brush teeth twice", xp: 4 },
@@ -309,6 +309,18 @@ function categoryCampaignPct(days, cat) {
   const max = catMaxXP * CAMPAIGN_DAYS;
   return max ? clamp(earned / max, 0, 1) : 0;
 }
+// Skills is achievement-based (driving + the 3 books), not day-by-day —
+// its "campaign %" is simply how much of its total XP pool has been earned.
+function skillsPct(config, achievements) {
+  const sx = config.skillXP || DEFAULT_SKILL_XP;
+  const max = (sx.driving || 0) + (sx.bookLHN || 0) + (sx.bookAH || 0) + (sx.bookNew || 0);
+  const earned =
+    (achievements.driving ? sx.driving : 0) +
+    (achievements.bookLHN ? sx.bookLHN : 0) +
+    (achievements.bookAH ? sx.bookAH : 0) +
+    (achievements.bookNew ? sx.bookNew : 0);
+  return max ? clamp(earned / max, 0, 1) : 0;
+}
 
 
 /* ============================= STYLES ============================= */
@@ -348,11 +360,15 @@ const STYLES = `
   --shadow:0 0 40px rgba(255,215,0,0.3);
 }
 .ascend-app{box-sizing:border-box; width:100%; min-height:100vh; background:var(--bg); color:var(--text);
-  font-family:var(--font); transition:background .4s ease,color .4s ease; overscroll-behavior-y:none; position:relative;}
+  font-family:var(--font); transition:background .4s ease,color .4s ease; overscroll-behavior-y:none; position:relative;
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility;}
 .ascend-app[data-celebration="true"]{background:linear-gradient(135deg,#1a1200,#2a1d00,#3a2900,#1a1200); background-size:300% 300%; animation:ascendGold 6s ease infinite;}
 @keyframes ascendGold{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
 .ascend-app *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
 .ascend-app button,.ascend-app input,.ascend-app textarea,.ascend-app select{font-family:inherit; color:inherit;}
+.ascend-app button:focus-visible,.ascend-app input:focus-visible,.ascend-app textarea:focus-visible,.ascend-app select:focus-visible,.ascend-app [tabindex]:focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px; border-radius:4px;}
+.ascend-app select{background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; cursor:pointer;}
 .ascend-app .app{max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative; overflow:hidden;}
 .ascend-app .scroll{flex:1; overflow-y:auto; padding:14px 14px 100px; -webkit-overflow-scrolling:touch; position:relative;}
 .ascend-app .scroll::-webkit-scrollbar{width:0;height:0;}
@@ -407,19 +423,23 @@ const STYLES = `
 .ascend-app .tab.active{color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent);}
 
 .ascend-app .section-title{font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:1.2px; color:var(--sub);
-  margin:22px 2px 10px; display:flex; align-items:center; justify-content:space-between;}
+  margin:22px 2px 10px; display:flex; align-items:center; justify-content:space-between; line-height:1.3;}
 .ascend-app .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:12px;}
 
 .ascend-app .trio{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
-.ascend-app .trio-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 5px; text-align:center; cursor:pointer;}
+.ascend-app .trio-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 5px; text-align:center; cursor:pointer;
+  box-shadow:0 2px 8px rgba(0,0,0,0.12); transition:transform .12s ease;}
+.ascend-app .trio-card:active{transform:scale(.96);}
 .ascend-app .trio-card .ic{font-size:16px;}
-.ascend-app .trio-card b{display:block; font-size:14px; margin-top:2px;}
-.ascend-app .trio-card span{font-size:8.5px; color:var(--sub); text-transform:uppercase; letter-spacing:.4px;}
+.ascend-app .trio-card b{display:block; font-size:14px; margin-top:2px; line-height:1.2;}
+.ascend-app .trio-card span{font-size:9px; color:var(--sub); text-transform:uppercase; letter-spacing:.4px; line-height:1.3;}
 .ascend-app .compact-detail{margin-top:10px;}
 
 .ascend-app .aspect-strip{display:flex; justify-content:space-between; gap:8px; margin-top:6px;}
-.ascend-app .aspect-mini{flex:1; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:10px 6px; text-align:center; cursor:pointer;}
-.ascend-app .aspect-mini .name{font-size:10px; font-weight:700; margin-top:4px;}
+.ascend-app .aspect-mini{flex:1; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:10px 6px; text-align:center; cursor:pointer;
+  box-shadow:0 2px 8px rgba(0,0,0,0.12); transition:transform .12s ease;}
+.ascend-app .aspect-mini:active{transform:scale(.96);}
+.ascend-app .aspect-mini .name{font-size:10px; font-weight:700; margin-top:4px; line-height:1.25;}
 .ascend-app .ring{width:48px; height:48px; margin:0 auto;}
 .ascend-app .ring.big{width:64px; height:64px;}
 .ascend-app .ring circle{fill:none; stroke-width:6;}
@@ -435,16 +455,21 @@ const STYLES = `
 .ascend-app .task-row:last-child{border-bottom:none;}
 .ascend-app .chk{width:23px; height:23px; border-radius:7px; border:2px solid var(--sub2); flex:none; cursor:pointer;
   display:flex; align-items:center; justify-content:center; font-size:14px; transition:all .15s; background:transparent;}
+.ascend-app .chk:active{transform:scale(.9);}
 .ascend-app .chk.on{background:var(--green); border-color:var(--green); color:#08130c;}
-.ascend-app .task-name{flex:1; font-size:14px; font-weight:600;}
+.ascend-app .task-name{flex:1; font-size:14px; font-weight:600; line-height:1.35;}
 .ascend-app .task-xp{font-size:12px; color:var(--sub); font-weight:700;}
 .ascend-app .task-row.done .task-name{color:var(--sub); text-decoration:line-through;}
 .ascend-app .task-row.static .task-name{font-weight:500;}
 
 .ascend-app .field-row{display:flex; gap:8px; margin-top:10px;}
-.ascend-app .field-row input,.ascend-app .field-row textarea{flex:1; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px;}
-.ascend-app textarea{width:100%; min-height:70px; resize:vertical; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; margin-top:8px;}
-.ascend-app .btn{background:var(--accent); color:#fff; border:none; padding:10px 16px; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer;}
+.ascend-app .field-row input,.ascend-app .field-row textarea{flex:1; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; transition:border-color .15s ease;}
+.ascend-app textarea{width:100%; min-height:70px; resize:vertical; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; margin-top:8px; transition:border-color .15s ease; line-height:1.4;}
+.ascend-app input:focus,.ascend-app textarea:focus{border-color:var(--accent);}
+.ascend-app .btn{background:var(--accent); color:#fff; border:none; padding:10px 16px; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; gap:6px; letter-spacing:.2px; line-height:1.2;
+  transition:transform .12s ease, opacity .12s ease, box-shadow .12s ease;}
+.ascend-app .btn:active:not(:disabled){transform:scale(.96);}
 .ascend-app[data-celebration="true"] .btn{color:#1a1200;}
 .ascend-app .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--text);}
 .ascend-app .btn.sm{padding:7px 12px; font-size:12px;}
@@ -459,8 +484,8 @@ const STYLES = `
 .ascend-app .day-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; font-size:12.5px;}
 .ascend-app .week-nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
 .ascend-app .week-nav b{font-size:14px;}
-.ascend-app .dots{display:flex; justify-content:space-between;}
-.ascend-app .day-dot{display:flex; flex-direction:column; align-items:center; gap:6px; font-size:10px; color:var(--sub); cursor:pointer;}
+.ascend-app .dots{display:flex;}
+.ascend-app .day-dot{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:10px; color:var(--sub); cursor:pointer;}
 .ascend-app .dot{width:20px; height:20px; border-radius:50%; background:var(--card2); border:2px solid var(--line);}
 .ascend-app .dot.g{background:var(--green); border-color:var(--green);}
 .ascend-app .dot.y{background:var(--yellow); border-color:var(--yellow);}
@@ -493,21 +518,25 @@ const STYLES = `
 .ascend-app .pen-meter .seg.on{background:var(--red);}
 
 .ascend-app .swatch-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;}
-.ascend-app .theme-swatch{width:68px; height:68px; border-radius:16px; border:2px solid var(--line); cursor:pointer; display:flex; align-items:center; justify-content:center; background:var(--card2); overflow:hidden; position:relative;}
+.ascend-app .theme-swatch{width:68px; height:68px; border-radius:16px; border:2px solid var(--line); cursor:pointer; display:flex; align-items:center; justify-content:center; background:var(--card2); overflow:hidden; position:relative; transition:transform .12s ease, border-color .12s ease;}
+.ascend-app .theme-swatch:active{transform:scale(.95);}
 .ascend-app .theme-swatch.sel{border-color:var(--accent); transform:scale(1.06);}
 .ascend-app .theme-swatch span.tlabel{position:absolute; bottom:1px; left:0; right:0; font-size:7px; text-align:center; font-weight:700; background:rgba(0,0,0,0.35); color:#fff; padding:1px 0;}
-.ascend-app .swatch{width:34px; height:34px; border-radius:50%; border:2px solid var(--line); cursor:pointer;}
+.ascend-app .swatch{width:34px; height:34px; border-radius:50%; border:2px solid var(--line); cursor:pointer; transition:transform .12s ease;}
+.ascend-app .swatch:active{transform:scale(.9);}
 .ascend-app .swatch.sel{border-color:var(--text); transform:scale(1.1);}
 .ascend-app .toggle-row{display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line);}
 .ascend-app .toggle-row:last-child{border-bottom:none;}
-.ascend-app .switch{width:46px; height:26px; border-radius:20px; background:var(--card2); border:1px solid var(--line); position:relative; cursor:pointer;}
+.ascend-app .switch{width:46px; height:26px; border-radius:20px; background:var(--card2); border:1px solid var(--line); position:relative; cursor:pointer; transition:background .15s ease;}
 .ascend-app .switch.on{background:var(--accent);}
-.ascend-app .switch::after{content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:.2s;}
+.ascend-app .switch::after{content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,0.25);}
 .ascend-app .switch.on::after{left:22px;}
 .ascend-app .edit-task-row{display:flex; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);}
 .ascend-app .edit-task-row input[type=text]{flex:1; background:var(--card2); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px;}
 .ascend-app .edit-task-row input[type=number]{width:56px; background:var(--card2); border:1px solid var(--line); border-radius:8px; padding:7px 6px; font-size:13px; text-align:center;}
-.ascend-app .iconbtn{background:none; border:none; color:var(--sub); font-size:16px; cursor:pointer; padding:4px 6px;}
+.ascend-app .iconbtn{background:none; border:none; color:var(--sub); font-size:16px; cursor:pointer; padding:4px 6px;
+  display:inline-flex; align-items:center; justify-content:center; border-radius:6px; transition:color .15s ease, background .15s ease;}
+.ascend-app .iconbtn:hover{color:var(--red); background:var(--card2);}
 .ascend-app .lockbar{display:flex; align-items:center; gap:8px; background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;}
 .ascend-app .hidden{display:none !important;}
 .ascend-app .arc-desc{font-size:12px; color:var(--sub); margin-bottom:8px;}
@@ -1110,8 +1139,12 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
             </div>
           );
         })}
+        <div className="aspect-mini" onClick={() => setOpenAspect((a) => (a === "skills" ? null : "skills"))}>
+          <Ring pct={skillsPct(config, achievements)} size={48} />
+          <div className="name">🎓 Skills</div>
+        </div>
       </div>
-      {openAspect && (
+      {openAspect && openAspect !== "skills" && (
         <div className="card" id="aspect-detail" style={{ marginTop: 12 }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>
             {config.tasks[openAspect].icon} {config.tasks[openAspect].label}
@@ -1119,27 +1152,27 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
           {config.tasks[openAspect].tasks.map((tk) => (
             <TaskRowStatic key={tk.id} name={tk.name} xp={tk.xp} />
           ))}
-          {openAspect === "discipline" && (
-            <>
-              <div className="task-group-title">Skills</div>
-              <TaskRow
-                name="Driving" xp={config.skillXP?.driving ?? 3} done={!!achievements.driving} disabled={!isOwner}
-                onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, driving: !p.driving })); onAfterTaskToggle(); }}
-              />
-              <TaskRow
-                name={`${config.bookNames?.bookLHN ?? "Book 1"} (Arc II)`} xp={config.skillXP?.bookLHN ?? 2} done={!!achievements.bookLHN} disabled={!isOwner}
-                onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookLHN: !p.bookLHN })); onAfterTaskToggle(); }}
-              />
-              <TaskRow
-                name={`${config.bookNames?.bookAH ?? "Book 2"} (Arc I)`} xp={config.skillXP?.bookAH ?? 2} done={!!achievements.bookAH} disabled={!isOwner}
-                onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookAH: !p.bookAH })); onAfterTaskToggle(); }}
-              />
-              <TaskRow
-                name={`${config.bookNames?.bookNew ?? "Book 3"} (Arc III)`} xp={config.skillXP?.bookNew ?? 2} done={!!achievements.bookNew} disabled={!isOwner}
-                onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookNew: !p.bookNew })); onAfterTaskToggle(); }}
-              />
-            </>
-          )}
+        </div>
+      )}
+      {openAspect === "skills" && (
+        <div className="card" id="aspect-detail" style={{ marginTop: 12 }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>🎓 Skills</div>
+          <TaskRow
+            name="Driving" xp={config.skillXP?.driving ?? 3} done={!!achievements.driving} disabled={!isOwner}
+            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, driving: !p.driving })); onAfterTaskToggle(); }}
+          />
+          <TaskRow
+            name={`${config.bookNames?.bookLHN ?? "Book 1"} (Arc II)`} xp={config.skillXP?.bookLHN ?? 2} done={!!achievements.bookLHN} disabled={!isOwner}
+            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookLHN: !p.bookLHN })); onAfterTaskToggle(); }}
+          />
+          <TaskRow
+            name={`${config.bookNames?.bookAH ?? "Book 2"} (Arc I)`} xp={config.skillXP?.bookAH ?? 2} done={!!achievements.bookAH} disabled={!isOwner}
+            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookAH: !p.bookAH })); onAfterTaskToggle(); }}
+          />
+          <TaskRow
+            name={`${config.bookNames?.bookNew ?? "Book 3"} (Arc III)`} xp={config.skillXP?.bookNew ?? 2} done={!!achievements.bookNew} disabled={!isOwner}
+            onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, bookNew: !p.bookNew })); onAfterTaskToggle(); }}
+          />
         </div>
       )}
     </>
