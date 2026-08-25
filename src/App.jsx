@@ -1376,61 +1376,53 @@ function PenaltiesTab({ config, days, setDays, achievements, penaltyLog, isOwner
 function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, onLogout }) {
   const [viewerPwDraft, setViewerPwDraft] = useState(config.viewerPassword || "");
   const [thresholdDraft, setThresholdDraft] = useState(config.threshold);
-
-  // flat list of every editable task, tagged with which category it lives in
-  const [taskDrafts, setTaskDrafts] = useState(() => {
-    const flat = [];
-    for (const [catKey, cat] of Object.entries(config.tasks)) {
-      for (const tk of cat.tasks) flat.push({ ...tk, catKey });
-    }
-    return flat;
-  });
   const [newTask, setNewTask] = useState({ name: "", xp: 5, catKey: "strength" });
-  const [skillDrafts, setSkillDrafts] = useState(() => ({
-    driving: { name: "Driving", xp: config.skillXP?.driving ?? 3 },
-    bookLHN: { name: config.bookNames?.bookLHN ?? "Book 1", xp: config.skillXP?.bookLHN ?? 2 },
-    bookAH: { name: config.bookNames?.bookAH ?? "Book 2", xp: config.skillXP?.bookAH ?? 2 },
-    bookNew: { name: config.bookNames?.bookNew ?? "Book 3", xp: config.skillXP?.bookNew ?? 2 },
-  }));
 
   const patchConfig = (patch) => setConfig((prev) => ({ ...prev, ...patch }));
 
-  const saveTasks = () => {
-    const byCategory = {};
-    for (const tk of taskDrafts) {
-      if (!byCategory[tk.catKey]) byCategory[tk.catKey] = [];
-      byCategory[tk.catKey].push({ id: tk.id, name: tk.name, xp: tk.xp });
-    }
-    const nextTasks = { ...config.tasks };
-    for (const catKey of Object.keys(nextTasks)) {
-      nextTasks[catKey] = { ...nextTasks[catKey], tasks: byCategory[catKey] || [] };
-    }
-    patchConfig({ tasks: nextTasks });
+  // Every task/skill edit below writes straight to config — there is no local
+  // staging copy that can go stale and silently overwrite newer synced data
+  // when a separate "Save" button used to be clicked.
+  const updateTask = (catKey, taskId, field, value) => {
+    setConfig((prev) => {
+      const cat = prev.tasks[catKey];
+      const nextArr = cat.tasks.map((t) => (t.id === taskId ? { ...t, [field]: value } : t));
+      return { ...prev, tasks: { ...prev.tasks, [catKey]: { ...cat, tasks: nextArr } } };
+    });
+  };
+
+  const deleteTask = (catKey, taskId) => {
+    setConfig((prev) => {
+      const cat = prev.tasks[catKey];
+      const nextArr = cat.tasks.filter((t) => t.id !== taskId);
+      return { ...prev, tasks: { ...prev.tasks, [catKey]: { ...cat, tasks: nextArr } } };
+    });
   };
 
   const addTask = () => {
     if (!newTask.name.trim()) return;
-    setTaskDrafts((prev) => [...prev, { id: `t_${uid()}`, name: newTask.name.trim(), xp: Number(newTask.xp) || 1, catKey: newTask.catKey }]);
+    setConfig((prev) => {
+      const cat = prev.tasks[newTask.catKey];
+      const nextArr = [...cat.tasks, { id: `t_${uid()}`, name: newTask.name.trim(), xp: Number(newTask.xp) || 1 }];
+      return { ...prev, tasks: { ...prev.tasks, [newTask.catKey]: { ...cat, tasks: nextArr } } };
+    });
     setNewTask({ name: "", xp: 5, catKey: newTask.catKey });
   };
 
-  const deleteTask = (idx) => setTaskDrafts((prev) => prev.filter((_, i) => i !== idx));
+  const flatTasks = [];
+  for (const [catKey, cat] of Object.entries(config.tasks)) {
+    for (const tk of cat.tasks) flatTasks.push({ ...tk, catKey });
+  }
 
-  const saveSkills = () => {
-    patchConfig({
-      skillXP: {
-        driving: Number(skillDrafts.driving.xp) || 1,
-        bookLHN: Number(skillDrafts.bookLHN.xp) || 1,
-        bookAH: Number(skillDrafts.bookAH.xp) || 1,
-        bookNew: Number(skillDrafts.bookNew.xp) || 1,
-      },
-      bookNames: {
-        bookLHN: skillDrafts.bookLHN.name,
-        bookAH: skillDrafts.bookAH.name,
-        bookNew: skillDrafts.bookNew.name,
-      },
-    });
-  };
+  const setSkillXP = (key, xp) => setConfig((prev) => ({ ...prev, skillXP: { ...prev.skillXP, [key]: Number(xp) || 1 } }));
+  const setBookName = (key, name) => setConfig((prev) => ({ ...prev, bookNames: { ...prev.bookNames, [key]: name } }));
+
+  const skillRows = [
+    { key: "driving", name: "Driving", xp: config.skillXP?.driving ?? 3, editableName: false },
+    { key: "bookLHN", name: config.bookNames?.bookLHN ?? "Book 1", xp: config.skillXP?.bookLHN ?? 2, editableName: true },
+    { key: "bookAH", name: config.bookNames?.bookAH ?? "Book 2", xp: config.skillXP?.bookAH ?? 2, editableName: true },
+    { key: "bookNew", name: config.bookNames?.bookNew ?? "Book 3", xp: config.skillXP?.bookNew ?? 2, editableName: true },
+  ];
 
   const log = (config.loginLog || []).slice(-20).reverse();
 
@@ -1505,19 +1497,19 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, 
 
       <div className="section-title">Tasks</div>
       <div className="card">
-        <div className="small-muted" style={{ marginBottom: 8 }}>Any task name or XP value can be changed here. You can also add new tasks or delete existing ones.</div>
-        {taskDrafts.map((tk, idx) => (
+        <div className="small-muted" style={{ marginBottom: 8 }}>Any task name or XP value can be changed here — changes save instantly. You can also add new tasks or delete existing ones.</div>
+        {flatTasks.map((tk) => (
           <div className="edit-task-row" key={tk.id}>
             <input
               type="text" value={tk.name} disabled={!isOwner}
-              onChange={(e) => setTaskDrafts((prev) => prev.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)))}
+              onChange={(e) => updateTask(tk.catKey, tk.id, "name", e.target.value)}
             />
             <input
               type="number" value={tk.xp} disabled={!isOwner}
-              onChange={(e) => setTaskDrafts((prev) => prev.map((x, i) => (i === idx ? { ...x, xp: Number(e.target.value) || 1 } : x)))}
+              onChange={(e) => updateTask(tk.catKey, tk.id, "xp", Number(e.target.value) || 1)}
             />
             {isOwner && (
-              <button className="iconbtn" title="Delete task" onClick={() => deleteTask(idx)}>✕</button>
+              <button className="iconbtn" title="Delete task" onClick={() => deleteTask(tk.catKey, tk.id)}>✕</button>
             )}
           </div>
         ))}
@@ -1541,32 +1533,25 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, 
               </select>
               <button className="btn sm" onClick={addTask}>+ Add Task</button>
             </div>
-            <div style={{ textAlign: "right", marginTop: 10 }}>
-              <button className="btn sm" onClick={saveTasks}>Save</button>
-            </div>
           </>
         )}
       </div>
 
       <div className="section-title">Skills &amp; Achievements</div>
       <div className="card">
-        {Object.entries(skillDrafts).map(([key, sd]) => (
-          <div className="edit-task-row" key={key}>
+        <div className="small-muted" style={{ marginBottom: 8 }}>Changes save instantly.</div>
+        {skillRows.map((sr) => (
+          <div className="edit-task-row" key={sr.key}>
             <input
-              type="text" value={sd.name} disabled={!isOwner || key === "driving"}
-              onChange={(e) => setSkillDrafts((prev) => ({ ...prev, [key]: { ...prev[key], name: e.target.value } }))}
+              type="text" value={sr.name} disabled={!isOwner || !sr.editableName}
+              onChange={(e) => setBookName(sr.key, e.target.value)}
             />
             <input
-              type="number" value={sd.xp} disabled={!isOwner}
-              onChange={(e) => setSkillDrafts((prev) => ({ ...prev, [key]: { ...prev[key], xp: Number(e.target.value) || 1 } }))}
+              type="number" value={sr.xp} disabled={!isOwner}
+              onChange={(e) => setSkillXP(sr.key, e.target.value)}
             />
           </div>
         ))}
-        {isOwner && (
-          <div style={{ textAlign: "right", marginTop: 8 }}>
-            <button className="btn sm" onClick={saveSkills}>Save</button>
-          </div>
-        )}
       </div>
 
       <div className="section-title">Sharing</div>
@@ -1647,6 +1632,17 @@ export default function App() {
   const dirtyRef = useRef(false);
   const applyingRemoteRef = useRef(false);
   const saveTimerRef = useRef(null);
+
+  // Wrapped setters: mark the sync guard dirty the INSTANT a local edit
+  // happens, synchronously — not one render-cycle later inside a useEffect.
+  // Without this, an incoming Firestore snapshot could land in that gap and
+  // silently overwrite a just-made edit (e.g. a newly added task) before the
+  // guard was up. Every child component below is given these, not the raw
+  // setState functions, so no local edit anywhere can be lost this way.
+  const setConfigSafe = useCallback((updater) => { dirtyRef.current = true; setConfig(updater); }, []);
+  const setDaysSafe = useCallback((updater) => { dirtyRef.current = true; setDays(updater); }, []);
+  const setAchievementsSafe = useCallback((updater) => { dirtyRef.current = true; setAchievements(updater); }, []);
+  const setPlansSafe = useCallback((updater) => { dirtyRef.current = true; setPlans(updater); }, []);
 
   const scrollRef = useRef(null);
   const [ptrY, setPtrY] = useState(-50);
@@ -1746,13 +1742,13 @@ export default function App() {
     const tier = tierFor(s);
     if (tier > config.lastRankTier) {
       const nextMs = achievements.milestones.findIndex((m) => !m);
-      setAchievements((prev) => {
+      setAchievementsSafe((prev) => {
         if (nextMs === -1) return prev;
         const next = [...prev.milestones];
         next[nextMs] = true;
         return { ...prev, milestones: next };
       });
-      setConfig((prev) => ({ ...prev, lastRankTier: tier }));
+      setConfigSafe((prev) => ({ ...prev, lastRankTier: tier }));
     }
   }, [days, config, achievements]);
 
@@ -1763,7 +1759,7 @@ export default function App() {
     const w = currentWeek(config);
     const misses = weekMissCount(days, config.tasks, config, w);
     const pen = penaltyForMisses(misses);
-    setConfig((prev) => ({ ...prev, __penaltyLevel: pen.level }));
+    setConfigSafe((prev) => ({ ...prev, __penaltyLevel: pen.level }));
     setPenaltyLog((prev) => {
       const last = prev[prev.length - 1];
       if (!last || last.week !== w || last.level !== pen.level) {
@@ -1828,7 +1824,7 @@ export default function App() {
         {!authRole ? (
           <div className="scroll">
             <LoginGate
-              config={config} setConfig={setConfig}
+              config={config} setConfig={setConfigSafe}
               onAuthed={(role) => { setAuthRole(role); setIsOwner(role === "owner"); }}
             />
           </div>
@@ -1840,30 +1836,30 @@ export default function App() {
               onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
             >
               {!config.started ? (
-                <StartGate isOwner={isOwner} onStart={() => setConfig((prev) => ({ ...prev, started: true }))} />
+                <StartGate isOwner={isOwner} onStart={() => setConfigSafe((prev) => ({ ...prev, started: true }))} />
               ) : (
                 <>
                   {activeTab === "home" && (
                     <HomeTab
-                      config={config} setConfig={setConfig} achievements={achievements} setAchievements={setAchievements}
-                      days={days} setDays={setDays} plans={plans} setPlans={setPlans} isOwner={isOwner}
+                      config={config} setConfig={setConfigSafe} achievements={achievements} setAchievements={setAchievementsSafe}
+                      days={days} setDays={setDaysSafe} plans={plans} setPlans={setPlansSafe} isOwner={isOwner}
                       onAfterTaskToggle={() => { checkRankUp(); checkPenaltyAutoLog(); }}
                     />
                   )}
                   {activeTab === "goals" && (
                     <MilestoneGoalsTab
-                      achievements={achievements} setAchievements={setAchievements}
-                      config={config} setConfig={setConfig} isOwner={isOwner}
+                      achievements={achievements} setAchievements={setAchievementsSafe}
+                      config={config} setConfig={setConfigSafe} isOwner={isOwner}
                       afterAchChange={checkRankUp}
                     />
                   )}
                   {activeTab === "penalties" && (
-                    <PenaltiesTab config={config} days={days} setDays={setDays} achievements={achievements} penaltyLog={penaltyLog} isOwner={isOwner} />
+                    <PenaltiesTab config={config} days={days} setDays={setDaysSafe} achievements={achievements} penaltyLog={penaltyLog} isOwner={isOwner} />
                   )}
                   {activeTab === "settings" && (
                     <SettingsTab
-                      config={config} setConfig={setConfig} isOwner={isOwner} setIsOwner={setIsOwner}
-                      onResetCampaign={() => setConfig((prev) => ({ ...prev, started: false }))}
+                      config={config} setConfig={setConfigSafe} isOwner={isOwner} setIsOwner={setIsOwner}
+                      onResetCampaign={() => setConfigSafe((prev) => ({ ...prev, started: false }))}
                       onLogout={() => { setAuthRole(null); setIsOwner(false); lsSet(LS_KEYS.auth, null); }}
                     />
                   )}
