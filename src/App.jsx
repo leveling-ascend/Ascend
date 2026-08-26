@@ -55,11 +55,8 @@ const HARD_MODE_TASKS = [
 ];
 
 const THEMES = [
-  { id: "catmeme", label: "Cat Glitter" },
   { id: "dark", label: "Obsidian" },
   { id: "light", label: "Daylight" },
-  { id: "cyber", label: "Cyber" },
-  { id: "forest", label: "Forest" },
 ];
 
 const ACCENTS = ["#7c5cff", "#ff5c8a", "#3ddc84", "#ffb14d", "#4fd0ff", "#ff5c5c", "#c08bff"];
@@ -126,7 +123,7 @@ const DEFAULT_BOOK_NAMES = { bookLHN: "The Laws of Human Nature", bookAH: "Atomi
 const DEFAULT_WEIGHTLOSS_XP = { arcI: 5, arcII: 5, arcIII: 5 };
 
 const DEFAULT_CONFIG = {
-  theme: "catmeme", accent: "#ff5fa8", threshold: 70,
+  theme: "dark", accent: "#ff5fa8", threshold: 70,
   started: false,
   pinSet: false, pin: "", viewerPassword: "", loginLog: [],
   lastRankTier: 0, celebrationUntil: 0, gameCompleted: false,
@@ -350,21 +347,6 @@ const STYLES = `
   --line:rgba(20,20,30,0.08); --text:#191a22; --sub:#5c6072; --sub2:#8a8fa3;
   --shadow:0 8px 24px rgba(30,20,10,0.10);
 }
-.ascend-app[data-theme="cyber"]{
-  --bg:#04050a; --bg2:#070a14; --card:#0b1020; --card2:#111a30;
-  --line:rgba(0,234,255,0.18); --text:#e8feff; --sub:#7fd8e8; --sub2:#4a8a96;
-  --shadow:0 0 30px rgba(0,234,255,0.12);
-}
-.ascend-app[data-theme="forest"]{
-  --bg:#0d1610; --bg2:#111d16; --card:#16241c; --card2:#1c2e22;
-  --line:rgba(120,200,140,0.14); --text:#e9f5ec; --sub:#9fc4ab; --sub2:#5e7d68;
-  --shadow:0 8px 26px rgba(0,20,10,0.35);
-}
-.ascend-app[data-theme="catmeme"]{
-  --bg:#ffe4f3; --bg2:#fff0f8; --card:#fff7fc; --card2:#ffe9f6;
-  --line:rgba(255,90,180,0.25); --text:#5a1440; --sub:#a84a86; --sub2:#c98cb4;
-  --shadow:0 8px 26px rgba(255,100,180,0.18);
-}
 .ascend-app[data-celebration="true"]{
   --bg:#1a1200; --bg2:#231800; --card:#2a1d00; --card2:#3a2900;
   --line:rgba(255,215,0,0.35); --text:#fff8dc; --sub:#ffd76a; --sub2:#e0b840;
@@ -395,10 +377,6 @@ const STYLES = `
 @keyframes ascendFall{0%{transform:translateY(0) rotate(0deg); opacity:0;}10%{opacity:.85;}100%{transform:translateY(110vh) rotate(220deg); opacity:0;}}
 @keyframes ascendDrift{0%{transform:translateX(0); opacity:0;}10%{opacity:.75;}90%{opacity:.75;}100%{transform:translateX(120vw); opacity:0;}}
 @keyframes ascendTwinkleDrift{0%,100%{opacity:.12;}50%{opacity:.9;}}
-.ascend-app[data-theme="catmeme"] .card,.ascend-app[data-theme="catmeme"] .aspect-mini,.ascend-app[data-theme="catmeme"] .rank-core{
-  box-shadow:0 4px 18px rgba(255,110,190,0.25), var(--shadow);}
-.ascend-app[data-theme="catmeme"] .btn{background:linear-gradient(135deg,#ff5fa8,#c07bff);}
-
 .ascend-app .ptr{position:absolute; top:-50px; left:50%; transform:translateX(-50%); width:34px; height:34px; border-radius:50%;
   background:var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center;
   font-size:16px; transition:top .2s ease; z-index:15; box-shadow:var(--shadow);}
@@ -562,17 +540,6 @@ const STYLES = `
 @keyframes tiTwinkle{0%,100%{opacity:.2; transform:scale(.5);}50%{opacity:1; transform:scale(1.3);}}
 @keyframes tiSpin{to{transform:rotate(360deg);}}
 
-/* Cat Glitter: a little cat face (two ears + head) that wiggles, with orbiting sparkles */
-.ti-cat{position:relative; width:46px; height:44px;}
-.ti-cat-ear{position:absolute; top:0; width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent;
-  border-bottom:14px solid #ff4fa0; animation:tiCatWiggle 1.6s ease-in-out infinite; transform-origin:bottom center;}
-.ti-cat-ear.l{left:6px;}
-.ti-cat-ear.r{right:6px;}
-.ti-cat-head{position:absolute; left:9px; top:9px; width:28px; height:24px; background:#ff4fa0; border-radius:50% 50% 42% 42%;
-  animation:tiCatWiggle 1.6s ease-in-out infinite; transform-origin:bottom center;}
-@keyframes tiCatWiggle{0%,100%{transform:rotate(-7deg);}50%{transform:rotate(7deg);}}
-.ti-cat-spark{position:absolute; width:4px; height:4px; border-radius:50%; background:#fff; box-shadow:0 0 5px 1px #ff9fd4; animation:tiTwinkle 1.3s ease-in-out infinite;}
-
 /* Obsidian: a glowing crescent moon that gently bobs, with twinkling stars */
 .ti-moon-wrap{position:relative; width:44px; height:44px;}
 .ti-moon{position:absolute; left:9px; top:9px; width:26px; height:26px; border-radius:50%; background:#e4e8ff;
@@ -590,20 +557,6 @@ const STYLES = `
   box-shadow:0 0 10px 2px rgba(255,204,77,0.75); animation:tiSunPulse 1.8s ease-in-out infinite;}
 @keyframes tiSunPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.15);}}
 
-/* Cyber: a pulsing neon diamond with a scanning laser line */
-.ti-cyber-wrap{position:relative; width:42px; height:42px; overflow:hidden; border-radius:6px;}
-.ti-cyber-diamond{position:absolute; inset:5px; border:2px solid #00eaff; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
-  animation:tiCyberPulse 1.3s ease-in-out infinite;}
-@keyframes tiCyberPulse{0%,100%{transform:scale(1); filter:drop-shadow(0 0 3px #00eaff);}50%{transform:scale(1.2); filter:drop-shadow(0 0 9px #00eaff);}}
-.ti-cyber-scan{position:absolute; left:2px; right:2px; height:2px; background:#00eaff; box-shadow:0 0 6px 1px #00eaff; animation:tiScan 1.7s linear infinite;}
-@keyframes tiScan{0%{top:2px; opacity:0;}12%{opacity:1;}88%{opacity:1;}100%{top:40px; opacity:0;}}
-
-/* Forest: a little swaying pine tree */
-.ti-tree-wrap{position:relative; width:34px; height:44px; transform-origin:bottom center; animation:tiSway 2.4s ease-in-out infinite;}
-.ti-tree-top{position:absolute; top:0; left:5px; width:0; height:0; border-left:12px solid transparent; border-right:12px solid transparent; border-bottom:15px solid #3ddc84;}
-.ti-tree-mid{position:absolute; top:9px; left:2px; width:0; height:0; border-left:15px solid transparent; border-right:15px solid transparent; border-bottom:17px solid #2fb86e;}
-.ti-tree-trunk{position:absolute; bottom:0; left:13px; width:6px; height:9px; background:#7a5636; border-radius:1px;}
-@keyframes tiSway{0%,100%{transform:rotate(-9deg);}50%{transform:rotate(9deg);}}
 `;
 
 /* ============================= SMALL UI HELPERS ============================= */
@@ -666,18 +619,6 @@ function SwitchToggle({ on, onClick, disabled }) {
 
 /* -- animated (non-emoji) theme icons -- */
 function ThemeIcon({ id }) {
-  if (id === "catmeme") {
-    return (
-      <div className="ti-cat">
-        <div className="ti-cat-ear l" />
-        <div className="ti-cat-ear r" />
-        <div className="ti-cat-head" />
-        <div className="ti-cat-spark" style={{ left: 1, top: 3, animationDelay: "0s" }} />
-        <div className="ti-cat-spark" style={{ right: 1, top: 10, animationDelay: ".4s" }} />
-        <div className="ti-cat-spark" style={{ left: 4, bottom: 2, animationDelay: ".8s" }} />
-      </div>
-    );
-  }
   if (id === "dark") {
     return (
       <div className="ti-moon-wrap">
@@ -693,23 +634,6 @@ function ThemeIcon({ id }) {
       <div className="ti-sun-wrap">
         <div className="ti-sun-rays" />
         <div className="ti-sun-core" />
-      </div>
-    );
-  }
-  if (id === "cyber") {
-    return (
-      <div className="ti-cyber-wrap">
-        <div className="ti-cyber-diamond" />
-        <div className="ti-cyber-scan" />
-      </div>
-    );
-  }
-  if (id === "forest") {
-    return (
-      <div className="ti-tree-wrap">
-        <div className="ti-tree-top" />
-        <div className="ti-tree-mid" />
-        <div className="ti-tree-trunk" />
       </div>
     );
   }
@@ -1456,7 +1380,7 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, 
         </div>
       </div>
 
-      <div className="section-title">Appearance — 5 Themes</div>
+      <div className="section-title">Appearance — Theme</div>
       <div className="card">
         <div className="swatch-row">
           {THEMES.map((th) => (
@@ -1568,11 +1492,8 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, 
 function themeParticles(theme, celebration) {
   if (celebration) return { glyphs: ["🏆", "✨", "⭐", "🎉", "💛"], anim: "float" };
   switch (theme) {
-    case "catmeme": return { glyphs: ["🐱", "✨", "💖", "🌸", "⭐"], anim: "float" };
     case "dark": return { glyphs: ["✨", "⭐", "🌙"], anim: "twinkleDrift" };
     case "light": return { glyphs: ["☀️", "☁️"], anim: "drift" };
-    case "cyber": return { glyphs: ["◆", "▲", "●"], anim: "fall" };
-    case "forest": return { glyphs: ["🍃", "🌿", "🍂"], anim: "fall" };
     default: return { glyphs: ["✨"], anim: "float" };
   }
 }
