@@ -368,11 +368,14 @@ const STYLES = `
 .ascend-app .scroll::-webkit-scrollbar{width:0;height:0;}
 
 .ascend-app .sparkle-layer{position:fixed; inset:0; pointer-events:none; z-index:5; overflow:hidden;}
-.ascend-app .sparkle-layer span{position:absolute; opacity:.85;}
+.ascend-app .sparkle-layer span{position:absolute; opacity:.85; display:block;}
 .ascend-app .sparkle-layer span.float{animation-name:ascendFloatUp; animation-timing-function:linear; animation-iteration-count:infinite;}
 .ascend-app .sparkle-layer span.fall{animation-name:ascendFall; animation-timing-function:linear; animation-iteration-count:infinite;}
 .ascend-app .sparkle-layer span.drift{animation-name:ascendDrift; animation-timing-function:linear; animation-iteration-count:infinite;}
 .ascend-app .sparkle-layer span.twinkleDrift{animation-name:ascendTwinkleDrift; animation-timing-function:ease-in-out; animation-iteration-count:infinite;}
+.ascend-app .sparkle-layer span.shape-dot{border-radius:50%; box-shadow:0 0 6px currentColor;}
+.ascend-app .sparkle-layer span.shape-star{border-radius:2px; clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%); box-shadow:0 0 5px currentColor;}
+.ascend-app .sparkle-layer span.shape-cloud{border-radius:50%; filter:blur(1.5px); opacity:.55;}
 @keyframes ascendFloatUp{0%{transform:translateY(0) rotate(0deg); opacity:0;}10%{opacity:.9;}100%{transform:translateY(-110vh) rotate(360deg); opacity:0;}}
 @keyframes ascendFall{0%{transform:translateY(0) rotate(0deg); opacity:0;}10%{opacity:.85;}100%{transform:translateY(110vh) rotate(220deg); opacity:0;}}
 @keyframes ascendDrift{0%{transform:translateX(0); opacity:0;}10%{opacity:.75;}90%{opacity:.75;}100%{transform:translateX(120vw); opacity:0;}}
@@ -1490,40 +1493,41 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, 
 // Ambient particles that make each theme visibly *look* like its name across
 // the whole app — not just as a tiny picker icon.
 function themeParticles(theme, celebration) {
-  if (celebration) return { glyphs: ["🏆", "✨", "⭐", "🎉", "💛"], anim: "float" };
+  if (celebration) return { shapes: [{ shape: "star", color: "#ffe873" }, { shape: "dot", color: "#ff9de2" }, { shape: "dot", color: "#7c5cff" }], anim: "float" };
   switch (theme) {
-    case "dark": return { glyphs: ["✨", "⭐", "🌙"], anim: "twinkleDrift" };
-    case "light": return { glyphs: ["☀️", "☁️"], anim: "drift" };
-    default: return { glyphs: ["✨"], anim: "float" };
+    case "dark": return { shapes: [{ shape: "star", color: "#f2f2ff" }, { shape: "dot", color: "#cfd6ff" }], anim: "twinkleDrift" };
+    case "light": return { shapes: [{ shape: "dot", color: "#ffd166" }, { shape: "cloud", color: "#ffffff" }], anim: "drift" };
+    default: return { shapes: [{ shape: "dot", color: "#ffffff" }], anim: "float" };
   }
 }
 function SparkleLayer({ theme, celebration }) {
-  const { glyphs, anim } = useMemo(() => themeParticles(theme, celebration), [theme, celebration]);
+  const { shapes, anim } = useMemo(() => themeParticles(theme, celebration), [theme, celebration]);
   const particles = useMemo(() => {
     return Array.from({ length: 14 }).map((_, i) => {
-      const glyph = glyphs[i % glyphs.length];
-      const size = 14 + Math.random() * 14;
+      const { shape, color } = shapes[i % shapes.length];
+      const size = 6 + Math.random() * 8;
       if (anim === "drift") {
-        return { key: i, glyph, size, duration: 14 + Math.random() * 12, delay: Math.random() * 14, style: { top: `${5 + Math.random() * 45}%`, left: "-10%" }, cls: "drift" };
+        return { key: i, shape, color, size, duration: 14 + Math.random() * 12, delay: Math.random() * 14, style: { top: `${5 + Math.random() * 45}%`, left: "-10%" }, cls: "drift" };
       }
       if (anim === "fall") {
-        return { key: i, glyph, size, duration: 8 + Math.random() * 8, delay: Math.random() * 10, style: { left: `${Math.random() * 100}%`, top: "-40px" }, cls: "fall" };
+        return { key: i, shape, color, size, duration: 8 + Math.random() * 8, delay: Math.random() * 10, style: { left: `${Math.random() * 100}%`, top: "-40px" }, cls: "fall" };
       }
       if (anim === "twinkleDrift") {
-        return { key: i, glyph, size: size * 0.7, duration: 1.4 + Math.random() * 1.8, delay: Math.random() * 3, style: { top: `${Math.random() * 90}%`, left: `${Math.random() * 100}%` }, cls: "twinkleDrift" };
+        return { key: i, shape, color, size: size * 0.8, duration: 1.4 + Math.random() * 1.8, delay: Math.random() * 3, style: { top: `${Math.random() * 90}%`, left: `${Math.random() * 100}%` }, cls: "twinkleDrift" };
       }
-      return { key: i, glyph, size, duration: 8 + Math.random() * 10, delay: Math.random() * 10, style: { left: `${Math.random() * 100}%`, bottom: "-40px" }, cls: "float" };
+      return { key: i, shape, color, size, duration: 8 + Math.random() * 10, delay: Math.random() * 10, style: { left: `${Math.random() * 100}%`, bottom: "-40px" }, cls: "float" };
     });
-  }, [glyphs, anim]);
+  }, [shapes, anim]);
   return (
     <div className="sparkle-layer">
       {particles.map((p) => (
         <span
-          key={p.key} className={p.cls}
-          style={{ ...p.style, fontSize: p.size, animationDuration: `${p.duration}s`, animationDelay: `${p.delay}s` }}
-        >
-          {p.glyph}
-        </span>
+          key={p.key} className={`${p.cls} shape-${p.shape}`}
+          style={{
+            ...p.style, width: p.size, height: p.size, background: p.color, color: p.color,
+            animationDuration: `${p.duration}s`, animationDelay: `${p.delay}s`,
+          }}
+        />
       ))}
     </div>
   );
@@ -1643,7 +1647,13 @@ export default function App() {
       const ref = doc(db, ASCEND_COLLECTION, MAIN_DOC_ID);
       setDoc(ref, { config, achievements, days, plans, penaltyLog })
         .then(() => { dirtyRef.current = false; setSyncStatus("synced"); })
-        .catch(() => setSyncStatus("error"));
+        .catch(() => {
+          // Even on failure, release the dirty guard — otherwise this
+          // device ignores every future incoming update until its next
+          // local edit happens to succeed, which can be a very long time.
+          dirtyRef.current = false;
+          setSyncStatus("error");
+        });
     }, 600);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1656,8 +1666,15 @@ export default function App() {
   currentArcLabel.__lastLabel = `${arcLabel} · Week ${currentWeek(config)} / 33`;
   const gameCompleted = !!config.gameCompleted;
 
-  /* ---- rank-up auto-check ---- */
+  /* ---- rank-up auto-check ----
+     Owner-only: these auto-checks run any time `score` recomputes, which
+     happens on EVERY device (including viewers) whenever new data arrives.
+     If a viewer's setConfigSafe/setAchievementsSafe fires here, that device's
+     dirtyRef gets stuck "true" forever (viewers never run the setDoc that
+     clears it), silently blocking all future incoming Firestore updates on
+     that device. Only the owner should ever mutate/persist derived state. */
   const checkRankUp = useCallback(() => {
+    if (!isOwner) return;
     if (achievements.finalAscent) return;
     const s = finalScore(days, config, achievements);
     const tier = tierFor(s);
@@ -1671,16 +1688,17 @@ export default function App() {
       });
       setConfigSafe((prev) => ({ ...prev, lastRankTier: tier }));
     }
-  }, [days, config, achievements]);
+  }, [days, config, achievements, isOwner]);
 
   useEffect(() => { if (loaded) checkRankUp(); }, [score, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ---- penalty auto-log ---- */
+  /* ---- penalty auto-log (owner-only, see note above) ---- */
   const checkPenaltyAutoLog = useCallback(() => {
+    if (!isOwner) return;
     const w = currentWeek(config);
     const misses = weekMissCount(days, config.tasks, config, w);
     const pen = penaltyForMisses(misses);
-    setConfigSafe((prev) => ({ ...prev, __penaltyLevel: pen.level }));
+    setConfigSafe((prev) => (prev.__penaltyLevel === pen.level ? prev : { ...prev, __penaltyLevel: pen.level }));
     setPenaltyLog((prev) => {
       const last = prev[prev.length - 1];
       if (!last || last.week !== w || last.level !== pen.level) {
@@ -1688,7 +1706,7 @@ export default function App() {
       }
       return prev;
     });
-  }, [days, config]);
+  }, [days, config, isOwner]);
 
   useEffect(() => { if (loaded) checkPenaltyAutoLog(); }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
