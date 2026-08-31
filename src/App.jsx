@@ -64,7 +64,7 @@ const ACCENTS = ["#7c5cff", "#ff5c8a", "#3ddc84", "#ffb14d", "#4fd0ff", "#ff5c5c
 /* -- daily tasks: Strength, Intellect, Discipline (Skills moved to achievements) -- */
 const DEFAULT_TASKS = {
   strength: {
-    label: "Strength & Fitness", icon: "💪",
+    label: "Strength & Fitness", icon: "dumbbell",
     tasks: [
       { id: "walk", name: "4 km walk", xp: 10 },
       { id: "exercise", name: "Exercise", xp: 12 },
@@ -72,7 +72,7 @@ const DEFAULT_TASKS = {
     ],
   },
   intellect: {
-    label: "Intellect", icon: "🧠",
+    label: "Intellect", icon: "brain",
     tasks: [
       { id: "study", name: "Study", xp: 20 },
       { id: "revision", name: "Revision", xp: 10 },
@@ -80,7 +80,7 @@ const DEFAULT_TASKS = {
     ],
   },
   discipline: {
-    label: "Discipline", icon: "🔥",
+    label: "Discipline", icon: "flame",
     tasks: [
       { id: "water", name: "Adequate water", xp: 11 },
       { id: "wake", name: "Wake at 7:00 AM", xp: 8 },
@@ -332,30 +332,101 @@ function skillsPct(config, achievements) {
 }
 
 
+/* ============================= ICONS =============================
+   Small stroke-based icon set (no external library, no emoji) so every
+   glyph in the app shares one visual language and renders identically
+   across platforms. */
+function Icon({ name, size = 18, className = "", style }) {
+  const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", className: `icon icon-${name}${className ? ` ${className}` : ""}`, style };
+  switch (name) {
+    case "home": return <svg {...p}><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9" /></svg>;
+    case "trophy": return <svg {...p}><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" /><path d="M8 5H5a2 2 0 0 0 0 4h1.6" /><path d="M16 5h3a2 2 0 0 1 0 4h-1.6" /><path d="M12 13v3" /><path d="M9 20h6" /><path d="M10 16.5h4l.5 3.5h-5l.5-3.5Z" /></svg>;
+    case "shield": return <svg {...p}><path d="M12 3.2 19 6v6c0 4.6-3 8.2-7 9.3-4-1.1-7-4.7-7-9.3V6l7-2.8Z" /><path d="m9.3 12 1.9 1.9 3.5-3.8" /></svg>;
+    case "gear": return <svg {...p}><circle cx="12" cy="12" r="3" /><path d="M19.4 13a7.8 7.8 0 0 0 0-2l1.9-1.4-2-3.4-2.2.5a7.9 7.9 0 0 0-1.7-1L15 3.5h-4l-.4 2.2a7.9 7.9 0 0 0-1.7 1l-2.2-.5-2 3.4L6.6 11a7.8 7.8 0 0 0 0 2l-1.9 1.4 2 3.4 2.2-.5c.5.4 1.1.75 1.7 1l.4 2.2h4l.4-2.2c.6-.25 1.2-.6 1.7-1l2.2.5 2-3.4L19.4 13Z" /></svg>;
+    case "lock": return <svg {...p}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
+    case "unlock": return <svg {...p}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.5-1.9" /></svg>;
+    case "eye": return <svg {...p}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
+    case "rocket": return <svg {...p}><path d="M12 2.2c2.4 2 3.8 5.3 3.8 8.7 0 1.9-.5 3.6-1 4.8l-2.8 2.8-2.8-2.8c-.5-1.2-1-2.9-1-4.8 0-3.4 1.4-6.7 3.8-8.7Z" /><circle cx="12" cy="9.2" r="1.4" /><path d="m8.6 14.8-2.3 2.3L5.5 21l3.9-.8 2-2.4" /><path d="m15.4 14.8 2.3 2.3.8 3.9-3.9-.8-2-2.4" /></svg>;
+    case "mountain": return <svg {...p}><path d="M3 19 9 8l4 6 2-3 6 8H3Z" /><circle cx="17.3" cy="6.3" r="1.4" /></svg>;
+    case "note": return <svg {...p}><rect x="4.5" y="3" width="15" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>;
+    case "clipboard": return <svg {...p}><rect x="6" y="4" width="12" height="17" rx="2" /><rect x="9" y="2.2" width="6" height="3.6" rx="1" /><path d="m9 12 2 2 4-4.2" /></svg>;
+    case "utensils": return <svg {...p}><path d="M6 3v6a1.5 1.5 0 0 0 3 0V3" /><path d="M7.5 9V21" /><path d="M17 3c-1.7 0-3 2-3 4.5S15.3 12 17 12v9" /></svg>;
+    case "bolt": return <svg {...p}><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" /></svg>;
+    case "cloud": return <svg {...p}><path d="M7.5 18a4 4 0 0 1-.6-7.95A5 5 0 0 1 16.2 8.3 4.3 4.3 0 0 1 17 16.9" /><path d="M7.5 18h9.2" /></svg>;
+    case "save": return <svg {...p}><path d="M5 4h11l3 3v13H5V4Z" /><path d="M8 4v5h8V4" /><path d="M8 14h8v6H8v-6Z" /></svg>;
+    case "cloud-off": return <svg {...p}><path d="M3 3l18 18" /><path d="M7.5 18a4 4 0 0 1-.6-7.95A5 5 0 0 1 16.2 8.3" /><path d="M17.6 16.9A4.3 4.3 0 0 0 17 9.1" /><path d="M9.8 18h6.9" /></svg>;
+    case "alert": return <svg {...p}><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>;
+    case "graduation": return <svg {...p}><path d="M2 9 12 4l10 5-10 5-10-5Z" /><path d="M6 11.5V16c0 1.4 2.8 3 6 3s6-1.6 6-3v-4.5" /><path d="M22 9v6" /></svg>;
+    case "dumbbell": return <svg {...p}><path d="M6 7v10M4 9v6M20 7v10M22 9v6" /><path d="M6 12h12" /></svg>;
+    case "brain": return <svg {...p}><path d="M9 3a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5.4V19a2 2 0 0 0 2 2h1" /><path d="M15 3a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5.4V19a2 2 0 0 1-2 2h-1" /><path d="M12 3v18" /></svg>;
+    case "flame": return <svg {...p}><path d="M12 2.2c1 4-4 5-4 9a4 4 0 0 0 8 0c0-1-.5-2-1-3 1 .5 2 2 2 4a5 5 0 0 1-10 0c0-4.7 2.6-7.7 5-10Z" /></svg>;
+    case "refresh": return <svg {...p}><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 4v5h-5" /></svg>;
+    case "chevron-left": return <svg {...p}><path d="M15 5 8 12l7 7" /></svg>;
+    case "chevron-right": return <svg {...p}><path d="m9 5 7 7-7 7" /></svg>;
+    case "x": return <svg {...p}><path d="M6 6l12 12M18 6 6 18" /></svg>;
+    case "check": return <svg {...p}><path d="M5 12.5 9.5 17 19 7" /></svg>;
+    default: return null;
+  }
+}
+
+// Renders a named icon; falls back to showing the raw string as-is if it's
+// not a recognized icon name (keeps old saved data — e.g. a legacy emoji —
+// from breaking, since icon fields are persisted in user config/Firestore).
+function CatIcon({ icon, size = 16, className, style }) {
+  const rendered = Icon({ name: icon, size, className, style });
+  return rendered || <span style={{ fontSize: size, lineHeight: 1 }}>{icon}</span>;
+}
+
+// Emoji equivalents for the built-in category icon keys, for spots (like the
+// Aspects ring strip) that want a plain emoji instead of a line-art icon.
+// Falls back to the raw icon field itself for legacy/custom values, since
+// that may already be an emoji a user saved in the past.
+const ICON_EMOJI = { dumbbell: "💪", brain: "🧠", flame: "🔥", graduation: "🎓" };
+function iconEmoji(icon) {
+  return ICON_EMOJI[icon] || icon;
+}
+
 /* ============================= STYLES ============================= */
 const STYLES = `
+html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transparent;}
+#root, #__next{height:100%;}
 .ascend-app{
-  --bg:#0a0c14; --bg2:#11141f; --card:#161a28; --card2:#1d2233;
-  --line:rgba(255,255,255,0.08); --text:#eef0f6; --sub:#8890a6; --sub2:#5c6580;
-  --accent:#7c5cff; --accent2:#a78bfa; --green:#3ddc84; --yellow:#ffcc4d; --red:#ff5c5c; --blue:#3d8bff;
-  --radius:18px; --radius-sm:12px;
+  --bg:#0a0c14; --bg2:#11141f; --card:#161a28; --card2:#1d2233; --card3:#242a3f; --nav-bg:#232a42;
+  --line:rgba(255,255,255,0.08); --line-soft:rgba(255,255,255,0.05); --text:#eef0f6; --sub:#8890a6; --sub2:#5c6580;
+  --accent:#7c5cff; --accent2:#a78bfa; --accent-glow:rgba(124,92,255,0.45);
+  --green:#3ddc84; --yellow:#ffcc4d; --red:#ff5c5c; --blue:#3d8bff;
+  --radius:18px; --radius-sm:12px; --radius-lg:22px;
+  --shadow-sm:0 2px 8px rgba(0,0,0,0.16);
   --shadow:0 8px 30px rgba(0,0,0,0.35);
+  --shadow-lg:0 16px 48px rgba(0,0,0,0.45);
+  --spring:cubic-bezier(.34,1.56,.64,1);
+  --ease:cubic-bezier(.22,1,.36,1);
+  --bg-glow:radial-gradient(ellipse 120% 60% at 50% -10%, rgba(124,92,255,0.16), transparent 60%);
   --font: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-display: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 }
 .ascend-app[data-theme="light"]{
-  --bg:#f3f1ea; --bg2:#ffffff; --card:#ffffff; --card2:#f6f4ee;
-  --line:rgba(20,20,30,0.08); --text:#191a22; --sub:#5c6072; --sub2:#8a8fa3;
+  --bg:#f3f1ea; --bg2:#ffffff; --card:#ffffff; --card2:#f6f4ee; --card3:#efece2; --nav-bg:#ffffff;
+  --line:rgba(20,20,30,0.08); --line-soft:rgba(20,20,30,0.05); --text:#191a22; --sub:#5c6072; --sub2:#8a8fa3;
+  --accent-glow:rgba(124,92,255,0.22);
+  --shadow-sm:0 2px 6px rgba(30,20,10,0.06);
   --shadow:0 8px 24px rgba(30,20,10,0.10);
+  --shadow-lg:0 20px 44px rgba(30,20,10,0.14);
+  --bg-glow:radial-gradient(ellipse 120% 60% at 50% -10%, rgba(124,92,255,0.10), transparent 60%);
 }
 .ascend-app[data-celebration="true"]{
-  --bg:#1a1200; --bg2:#231800; --card:#2a1d00; --card2:#3a2900;
-  --line:rgba(255,215,0,0.35); --text:#fff8dc; --sub:#ffd76a; --sub2:#e0b840;
-  --accent:#ffd700; --accent2:#fff2a8;
+  --bg:#1a1200; --bg2:#231800; --card:#2a1d00; --card2:#3a2900; --card3:#48330a; --nav-bg:#3f2c05;
+  --line:rgba(255,215,0,0.35); --line-soft:rgba(255,215,0,0.18); --text:#fff8dc; --sub:#ffd76a; --sub2:#e0b840;
+  --accent:#ffd700; --accent2:#fff2a8; --accent-glow:rgba(255,215,0,0.5);
   --shadow:0 0 40px rgba(255,215,0,0.3);
+  --shadow-lg:0 0 60px rgba(255,215,0,0.38);
+  --bg-glow:radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255,215,0,0.16), transparent 60%);
 }
 .ascend-app{box-sizing:border-box; width:100%; min-height:100vh; background:var(--bg); color:var(--text);
   font-family:var(--font); transition:background .4s ease,color .4s ease; overscroll-behavior-y:none; position:relative;
-  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility;}
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility;
+  letter-spacing:-.1px;}
+.ascend-app::before{content:''; position:fixed; inset:0; background:var(--bg-glow); pointer-events:none; z-index:0; transition:background .4s ease;}
 .ascend-app[data-celebration="true"]{background:linear-gradient(135deg,#1a1200,#2a1d00,#3a2900,#1a1200); background-size:300% 300%; animation:ascendGold 6s ease infinite;}
 @keyframes ascendGold{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
 .ascend-app *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
@@ -363,97 +434,168 @@ const STYLES = `
 .ascend-app button:focus-visible,.ascend-app input:focus-visible,.ascend-app textarea:focus-visible,.ascend-app select:focus-visible,.ascend-app [tabindex]:focus-visible{
   outline:2px solid var(--accent); outline-offset:2px; border-radius:4px;}
 .ascend-app select{background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; cursor:pointer;}
-.ascend-app .app{max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative; overflow:hidden;}
-.ascend-app .scroll{flex:1; overflow-y:auto; padding:14px 14px 100px; -webkit-overflow-scrolling:touch; position:relative;}
+.ascend-app .app{max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative; overflow:hidden; z-index:1;}
+.ascend-app .scroll{flex:1; overflow-y:auto; padding:14px 14px 108px; -webkit-overflow-scrolling:touch; position:relative;}
 .ascend-app .scroll::-webkit-scrollbar{width:0;height:0;}
 
 .ascend-app .sparkle-layer{position:fixed; inset:0; pointer-events:none; z-index:5; overflow:hidden;}
 .ascend-app .sparkle-layer span{position:absolute; opacity:.85; display:block;}
 .ascend-app .sparkle-layer span.float{animation-name:ascendFloatUp; animation-timing-function:linear; animation-iteration-count:infinite;}
-.ascend-app .sparkle-layer span.fall{animation-name:ascendFall; animation-timing-function:linear; animation-iteration-count:infinite;}
-.ascend-app .sparkle-layer span.drift{animation-name:ascendDrift; animation-timing-function:linear; animation-iteration-count:infinite;}
-.ascend-app .sparkle-layer span.twinkleDrift{animation-name:ascendTwinkleDrift; animation-timing-function:ease-in-out; animation-iteration-count:infinite;}
 .ascend-app .sparkle-layer span.shape-dot{border-radius:50%; box-shadow:0 0 6px currentColor;}
 .ascend-app .sparkle-layer span.shape-star{border-radius:2px; clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%); box-shadow:0 0 5px currentColor;}
-.ascend-app .sparkle-layer span.shape-cloud{border-radius:50%; filter:blur(1.5px); opacity:.55;}
 @keyframes ascendFloatUp{0%{transform:translateY(0) rotate(0deg); opacity:0;}10%{opacity:.9;}100%{transform:translateY(-110vh) rotate(360deg); opacity:0;}}
-@keyframes ascendFall{0%{transform:translateY(0) rotate(0deg); opacity:0;}10%{opacity:.85;}100%{transform:translateY(110vh) rotate(220deg); opacity:0;}}
-@keyframes ascendDrift{0%{transform:translateX(0); opacity:0;}10%{opacity:.75;}90%{opacity:.75;}100%{transform:translateX(120vw); opacity:0;}}
-@keyframes ascendTwinkleDrift{0%,100%{opacity:.12;}50%{opacity:.9;}}
 .ascend-app .ptr{position:absolute; top:-50px; left:50%; transform:translateX(-50%); width:34px; height:34px; border-radius:50%;
   background:var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center;
   font-size:16px; transition:top .2s ease; z-index:15; box-shadow:var(--shadow);}
 .ascend-app .ptr.spin{animation:ascendSpin .7s linear infinite;}
 @keyframes ascendSpin{to{transform:translateX(-50%) rotate(360deg);}}
 
-.ascend-app .hud{position:sticky; top:0; z-index:20; padding:16px 16px 14px; background:linear-gradient(180deg,var(--bg) 60%,transparent);
+.ascend-app .hud{position:sticky; top:0; z-index:20; padding:14px 14px 10px; background:linear-gradient(180deg,var(--bg) 55%,transparent);
   backdrop-filter:blur(6px);}
-.ascend-app .hud-top{display:flex; align-items:center; gap:14px;}
-.ascend-app .rank-core{position:relative; width:74px; height:74px; flex:none; border-radius:50%;
-  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:20px; letter-spacing:.5px;
+.ascend-app .hud-card{background:linear-gradient(165deg,var(--card3),var(--card)); border:1px solid var(--line);
+  border-radius:14px; padding:16px; box-shadow:var(--shadow-lg); position:relative; overflow:hidden;}
+.ascend-app[data-theme="light"]:not([data-celebration="true"]) .hud-card{background:linear-gradient(165deg,#fff2f7,#ffffff);}
+.ascend-app .hud-card::after{content:''; position:absolute; inset:0; background:radial-gradient(circle at 15% 0%, var(--accent-glow), transparent 55%);
+  opacity:.7; pointer-events:none;}
+.ascend-app[data-theme="light"]:not([data-celebration="true"]) .hud-card::after{background:radial-gradient(circle at 15% 0%, rgba(255,140,190,0.16), transparent 55%);}
+.ascend-app .hud-top{display:flex; align-items:center; gap:16px; position:relative;}
+.ascend-app .rank-core{position:relative; width:78px; height:78px; flex:none; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:21px; letter-spacing:.5px;
+  font-family:var(--font-display);
   background:radial-gradient(circle at 35% 30%, var(--rc2), var(--rc1) 70%);
-  box-shadow:0 0 0 3px var(--card), 0 0 24px 2px var(--rc1), inset 0 0 14px rgba(255,255,255,0.25);
-  color:#0a0c14; transition:all .6s ease;}
-.ascend-app .hud-mid{flex:1; min-width:0;}
-.ascend-app .hud-label{font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--sub2); font-weight:700;}
-.ascend-app .hud-score{font-size:30px; font-weight:800; letter-spacing:-.5px; line-height:1.1;}
-.ascend-app .hud-score span{font-size:15px; color:var(--sub); font-weight:600;}
-.ascend-app .hud-bar-track{margin-top:8px; height:8px; border-radius:6px; background:var(--card2); overflow:hidden; border:1px solid var(--line);}
-.ascend-app .hud-bar-fill{height:100%; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .5s ease;}
-.ascend-app .hud-meta{display:flex; justify-content:space-between; margin-top:6px; font-size:11.5px; color:var(--sub);}
+  box-shadow:0 0 0 4px var(--card), 0 0 28px 3px var(--rc1), inset 0 0 14px rgba(255,255,255,0.25);
+  color:#0a0c14; transition:all .6s var(--ease);}
 
-.ascend-app .celebrate{margin-top:12px; border-radius:16px; padding:14px; text-align:center; font-weight:800;
-  background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#1a1200; position:relative; overflow:hidden;}
-.ascend-app .celebrate .pop{position:absolute; font-size:18px; animation:ascendPop 1.6s ease-in-out infinite;}
+/* -- rank badge wrap: aura ring + tier-progress ring + rank-up burst -- */
+.ascend-app .rank-badge-wrap{position:relative; flex:none;}
+.ascend-app .rank-badge-wrap .rank-core{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:2;}
+.ascend-app .rank-aura{position:absolute; inset:0; border-radius:50%; z-index:1; pointer-events:none;
+  background:conic-gradient(from 0deg, transparent 0%, var(--rc2) 12%, transparent 26%, transparent 100%);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  animation:rankAuraSpin 5s linear infinite; opacity:.85;}
+@keyframes rankAuraSpin{to{transform:rotate(360deg);}}
+.ascend-app .rank-progress-ring{position:absolute; inset:0; z-index:1; pointer-events:none;}
+.ascend-app .rank-progress-ring circle{fill:none;}
+.ascend-app .rank-progress-ring .rpr-bg{stroke:var(--card2); opacity:.6;}
+.ascend-app[data-theme="light"]:not([data-celebration="true"]) .rank-progress-ring .rpr-bg{stroke:rgba(20,20,30,0.15); opacity:1;}
+.ascend-app .rank-progress-ring .rpr-fg{stroke-linecap:round; transition:stroke-dashoffset .8s var(--ease);}
+.ascend-app .rank-burst{position:absolute; inset:0; z-index:3; pointer-events:none;}
+.ascend-app .rank-burst .flash{position:absolute; top:50%; left:50%; width:78px; height:78px; margin:-39px 0 0 -39px;
+  border-radius:50%; background:radial-gradient(circle, #fff 0%, var(--rc2) 45%, transparent 72%);
+  opacity:0; animation:rankBurstFlash .9s ease-out forwards;}
+.ascend-app .rank-burst .bring{position:absolute; top:50%; left:50%; width:78px; height:78px; margin:-39px 0 0 -39px;
+  border-radius:50%; border:2px solid var(--rc2); opacity:0; transform:scale(.35); animation:rankBurstRing 1s ease-out forwards;}
+.ascend-app .rank-burst .bring.r2{animation-delay:.15s;}
+.ascend-app .rank-burst .bring.r3{animation-delay:.3s;}
+@keyframes rankBurstFlash{0%{opacity:.85; transform:scale(.3);}100%{opacity:0; transform:scale(1.5);}}
+@keyframes rankBurstRing{0%{opacity:.9; transform:scale(.35);}100%{opacity:0; transform:scale(2.3);}}
+.ascend-app .hud-mid{flex:1; min-width:0;}
+.ascend-app .hud-label{font-size:10.5px; text-transform:uppercase; letter-spacing:1.8px; color:var(--sub2); font-weight:800;}
+.ascend-app .hud-score{font-family:var(--font-display); font-size:36px; font-weight:800; letter-spacing:-1px; line-height:1.05; margin-top:2px;
+  background:linear-gradient(180deg,var(--text),var(--text) 60%,var(--sub)); -webkit-background-clip:text; background-clip:text;}
+.ascend-app .hud-score span{font-size:15px; color:var(--sub); font-weight:700; -webkit-text-fill-color:var(--sub); margin-left:2px;}
+.ascend-app .hud-bar-track{margin-top:10px; height:10px; border-radius:8px; background:var(--card2); overflow:hidden; border:1px solid var(--line); position:relative;}
+.ascend-app .hud-bar-fill{height:100%; border-radius:8px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .6s var(--ease);
+  box-shadow:0 0 12px var(--accent-glow); position:relative; overflow:hidden;}
+.ascend-app .hud-bar-fill::after{content:''; position:absolute; inset:0; background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,0.35) 50%,transparent 70%);
+  background-size:200% 100%; animation:ascendShimmer 2.6s linear infinite;}
+@keyframes ascendShimmer{0%{background-position:200% 0;}100%{background-position:-40% 0;}}
+.ascend-app .hud-meta{display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:11px; color:var(--sub); gap:8px;}
+.ascend-app .hud-meta > span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.ascend-app .sync-pill{display:inline-flex; align-items:center; gap:4px; flex:none; font-weight:700; font-size:10.5px;
+  padding:3px 8px 3px 6px; border-radius:20px; background:var(--card2); border:1px solid var(--line); color:var(--sub);}
+.ascend-app .sync-pill .icon{opacity:.85;}
+.ascend-app .sync-pill[data-state="synced"]{color:var(--green);}
+.ascend-app .sync-pill[data-state="saving"]{color:var(--blue);}
+.ascend-app .sync-pill[data-state="error"]{color:var(--red);}
+.ascend-app .sync-pill[data-state="offline"]{color:var(--sub);}
+
+.ascend-app .celebrate{margin-top:14px; border-radius:16px; padding:14px; text-align:center; font-weight:800;
+  background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#1a1200; position:relative; overflow:hidden; box-shadow:var(--shadow);}
+.ascend-app .celebrate .pop{position:absolute; animation:ascendPop 1.6s ease-in-out infinite;}
 @keyframes ascendPop{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-6px) scale(1.15);}}
 .ascend-app .celebrate.grand{font-size:16px; letter-spacing:.5px;}
 
-.ascend-app .tabbar{position:sticky; bottom:0; z-index:30; display:flex; background:var(--card); border-top:1px solid var(--line);
-  padding:8px 6px calc(8px + env(safe-area-inset-bottom)); gap:2px; max-width:520px; margin:0 auto; width:100%;}
+.ascend-app .tabbar{position:fixed; left:0; right:0; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:30; display:flex;
+  background:color-mix(in srgb, var(--nav-bg) 95%, transparent);
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  border:1px solid color-mix(in srgb, var(--text) 12%, var(--line));
+  border-radius:24px; box-shadow:0 10px 30px rgba(0,0,0,0.4), 0 2px 10px rgba(0,0,0,0.22);
+  padding:6px; gap:2px; max-width:492px; margin:0 auto; width:calc(100% - 28px);}
 .ascend-app .tab{flex:1; border:none; background:transparent; padding:8px 2px; border-radius:12px; font-size:10.5px; font-weight:700;
-  color:var(--sub); display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; letter-spacing:.3px;}
-.ascend-app .tab .ic{font-size:18px;}
+  color:var(--sub); display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; letter-spacing:.3px;
+  transition:color .15s ease, background .2s var(--spring), transform .15s var(--spring);}
+.ascend-app .tab:active{transform:scale(.93);}
+.ascend-app .tab .ic{display:flex;}
+.ascend-app .tab .ic .icon{transition:transform .3s var(--spring);}
 .ascend-app .tab.active{color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent);}
+.ascend-app .tab.active .ic .icon{transform:translateY(-1px) scale(1.08);}
 
-.ascend-app .section-title{font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:1.2px; color:var(--sub);
-  margin:22px 2px 10px; display:flex; align-items:center; justify-content:space-between; line-height:1.3;}
-.ascend-app .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:12px;}
+.ascend-app .section-title{font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:1.4px; color:var(--sub2);
+  margin:24px 2px 10px; display:flex; align-items:center; gap:8px; justify-content:space-between; line-height:1.3;}
+.ascend-app .section-title .icon{color:var(--accent); opacity:.9;}
+.ascend-app .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-bottom:12px;
+  transition:box-shadow .2s ease, transform .2s var(--spring);}
+.ascend-app .card.subtle{background:var(--card2); box-shadow:none; border-color:var(--line-soft);}
+.ascend-app .card.hero{background:linear-gradient(165deg,var(--card3),var(--card)); box-shadow:var(--shadow-lg); border-color:var(--line);}
+
+.ascend-app .icon-chip{width:34px; height:34px; border-radius:11px; display:flex; align-items:center; justify-content:center; flex:none;
+  background:color-mix(in srgb, var(--tone, var(--accent)) 16%, var(--card2)); color:var(--tone, var(--accent));}
+.ascend-app .icon-chip.sm{width:28px; height:28px; border-radius:9px;}
+.ascend-app .icon-chip.lg{width:44px; height:44px; border-radius:14px;}
 
 .ascend-app .trio{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
 .ascend-app .trio-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 5px; text-align:center; cursor:pointer;
-  box-shadow:0 2px 8px rgba(0,0,0,0.12); transition:transform .12s ease;}
-.ascend-app .trio-card:active{transform:scale(.96);}
-.ascend-app .trio-card .ic{font-size:16px;}
-.ascend-app .trio-card b{display:block; font-size:14px; margin-top:2px; line-height:1.2;}
+  box-shadow:var(--shadow-sm); transition:transform .15s var(--spring), box-shadow .15s ease;}
+.ascend-app .trio-card:active{transform:scale(.95);}
+.ascend-app .trio-card .icon-chip{margin:0 auto;}
+.ascend-app .trio-card b{display:block; font-size:14px; margin-top:6px; line-height:1.2;}
 .ascend-app .trio-card span{font-size:9px; color:var(--sub); text-transform:uppercase; letter-spacing:.4px; line-height:1.3;}
 .ascend-app .compact-detail{margin-top:10px;}
 
-.ascend-app .aspect-strip{display:flex; justify-content:space-between; gap:8px; margin-top:6px;}
-.ascend-app .aspect-mini{flex:1; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:10px 6px; text-align:center; cursor:pointer;
-  box-shadow:0 2px 8px rgba(0,0,0,0.12); transition:transform .12s ease;}
+.ascend-app .aspect-strip{display:flex; justify-content:space-between; gap:6px; margin-top:6px;}
+.ascend-app .aspect-mini{flex:1; text-align:center; cursor:pointer; padding:6px 2px; transition:transform .12s ease;}
 .ascend-app .aspect-mini:active{transform:scale(.96);}
-.ascend-app .aspect-mini .name{font-size:10px; font-weight:700; margin-top:4px; line-height:1.25;}
+.ascend-app .aspect-mini .name{font-size:11px; font-weight:700; margin-top:8px; line-height:1.35;}
+.ascend-app .aspect-mini .emoji{font-size:12px; line-height:1; filter:grayscale(1) brightness(0) invert(1); display:inline-block; margin-right:3px; vertical-align:-1px;}
+.ascend-app[data-theme="light"]:not([data-celebration="true"]) .aspect-mini .emoji{filter:grayscale(1) brightness(0);}
+.ascend-app[data-theme="light"]:not([data-celebration="true"]) .ring .bg{stroke:rgba(20,20,30,0.15);}
 .ascend-app .ring{width:48px; height:48px; margin:0 auto;}
-.ascend-app .ring.big{width:64px; height:64px;}
+.ascend-app .ring.big{width:72px; height:72px;}
 .ascend-app .ring circle{fill:none; stroke-width:6;}
 .ascend-app .ring.big circle{stroke-width:7;}
 .ascend-app .ring .bg{stroke:var(--card2);}
 .ascend-app .ring .fg{stroke:var(--accent); stroke-linecap:round; transition:stroke-dashoffset .6s ease;}
 .ascend-app .ring text{font-size:12px; font-weight:800; fill:var(--text);}
-.ascend-app .ring.big text{font-size:15px;}
+.ascend-app .ring.big text{font-size:16px;}
 
-.ascend-app .task-group{margin-bottom:6px;}
-.ascend-app .task-group-title{font-size:11.5px; font-weight:800; color:var(--sub); text-transform:uppercase; letter-spacing:.8px; margin:14px 2px 6px;}
-.ascend-app .task-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
-.ascend-app .task-row:last-child{border-bottom:none;}
-.ascend-app .chk{width:23px; height:23px; border-radius:7px; border:2px solid var(--sub2); flex:none; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; font-size:14px; transition:all .15s; background:transparent;}
-.ascend-app .chk:active{transform:scale(.9);}
-.ascend-app .chk.on{background:var(--green); border-color:var(--green); color:#08130c;}
-.ascend-app .task-name{flex:1; font-size:14px; font-weight:600; line-height:1.35;}
-.ascend-app .task-xp{font-size:12px; color:var(--sub); font-weight:700;}
-.ascend-app .task-row.done .task-name{color:var(--sub); text-decoration:line-through;}
+.ascend-app .task-group{margin-bottom:10px;}
+.ascend-app .task-group-title{font-size:11px; font-weight:800; color:var(--sub2); text-transform:uppercase; letter-spacing:1px; margin:16px 2px 8px;}
+.ascend-app .task-row{display:flex; align-items:center; gap:12px; padding:12px 14px; margin-bottom:8px;
+  background:var(--card2); border:1px solid var(--line-soft); border-radius:14px; cursor:pointer;
+  transition:transform .15s var(--spring), background .25s ease, border-color .25s ease, box-shadow .2s ease;}
+.ascend-app .task-row:last-child{margin-bottom:0;}
+.ascend-app .task-row:active{transform:scale(.98);}
+.ascend-app .task-row:hover{border-color:var(--line);}
+.ascend-app .task-row.done{background:color-mix(in srgb, var(--accent) 9%, var(--card2)); border-color:color-mix(in srgb, var(--accent) 28%, var(--line-soft));}
+.ascend-app .task-row.static{cursor:default;}
+.ascend-app .task-row.static:active{transform:none;}
+.ascend-app .task-row.locked{cursor:default;}
+.ascend-app .chk{width:24px; height:24px; border-radius:8px; border:2px solid var(--sub2); flex:none; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; background:transparent; position:relative;
+  transition:background .25s var(--spring), border-color .25s var(--spring), transform .15s var(--spring), box-shadow .3s ease;}
+.ascend-app .chk:active{transform:scale(.88);}
+.ascend-app .chk.on{background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);}
+.ascend-app .chk .chk-mark{animation:ascendCheckPop .32s var(--spring);}
+@keyframes ascendCheckPop{0%{transform:scale(0) rotate(-20deg); opacity:0;}100%{transform:scale(1) rotate(0); opacity:1;}}
+.ascend-app .task-name{flex:1; font-size:14px; font-weight:600; line-height:1.35; transition:color .25s ease;}
+.ascend-app .task-xp{font-size:11px; color:var(--sub); font-weight:800; letter-spacing:.2px; flex:none;
+  background:var(--card3); padding:4px 10px; border-radius:20px; transition:background .25s ease, color .25s ease;}
+.ascend-app .task-row.done .task-name{color:var(--sub); text-decoration:line-through; text-decoration-color:var(--sub2); text-decoration-thickness:1.5px;}
+.ascend-app .task-row.done .task-xp{background:color-mix(in srgb, var(--accent) 20%, var(--card3)); color:var(--accent);}
 .ascend-app .task-row.static .task-name{font-weight:500;}
+.ascend-app .task-row.static{background:var(--card2);}
 
 .ascend-app .field-row{display:flex; gap:8px; margin-top:10px;}
 .ascend-app .field-row input,.ascend-app .field-row textarea{flex:1; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; transition:border-color .15s ease;}
@@ -461,8 +603,9 @@ const STYLES = `
 .ascend-app input:focus,.ascend-app textarea:focus{border-color:var(--accent);}
 .ascend-app .btn{background:var(--accent); color:#fff; border:none; padding:10px 16px; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center; gap:6px; letter-spacing:.2px; line-height:1.2;
-  transition:transform .12s ease, opacity .12s ease, box-shadow .12s ease;}
-.ascend-app .btn:active:not(:disabled){transform:scale(.96);}
+  box-shadow:0 4px 14px var(--accent-glow);
+  transition:transform .18s var(--spring), opacity .12s ease, box-shadow .18s ease;}
+.ascend-app .btn:active:not(:disabled){transform:scale(.95);}
 .ascend-app[data-celebration="true"] .btn{color:#1a1200;}
 .ascend-app .btn.ghost{background:transparent; border:1px solid var(--line); color:var(--text);}
 .ascend-app .btn.sm{padding:7px 12px; font-size:12px;}
@@ -471,33 +614,76 @@ const STYLES = `
 .ascend-app .btn.gold{background:linear-gradient(135deg,#ffd700,#fff2a8); color:#1a1200;}
 .ascend-app .progress-line{display:flex; align-items:center; gap:10px; margin-top:6px;}
 .ascend-app .progress-line .track{flex:1; height:10px; border-radius:6px; background:var(--card2); overflow:hidden;}
-.ascend-app .progress-line .fill{height:100%; background:linear-gradient(90deg,var(--green),#8ff0b0);}
+.ascend-app .progress-line .fill{height:100%; background:linear-gradient(90deg,var(--green),#8ff0b0); transition:width .5s var(--ease); box-shadow:0 0 10px rgba(61,220,132,0.35);}
 .ascend-app .small-muted{font-size:11.5px; color:var(--sub);}
 
-.ascend-app .day-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; font-size:12.5px;}
-.ascend-app .week-nav{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
-.ascend-app .week-nav b{font-size:14px;}
-.ascend-app .dots{display:flex;}
-.ascend-app .day-dot{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:10px; color:var(--sub); cursor:pointer;}
-.ascend-app .dot{width:20px; height:20px; border-radius:50%; background:var(--card2); border:2px solid var(--line);}
-.ascend-app .dot.g{background:var(--green); border-color:var(--green);}
-.ascend-app .dot.y{background:var(--yellow); border-color:var(--yellow);}
-.ascend-app .dot.r{background:var(--red); border-color:var(--red);}
-.ascend-app .dot.b{background:var(--blue); border-color:var(--blue);}
-.ascend-app .dot.today{box-shadow:0 0 0 2px var(--accent);}
+.ascend-app .day-header{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; font-size:12.5px; flex-wrap:wrap;}
+.ascend-app .day-header-note{flex:1 1 200px; min-width:0; line-height:1.4;}
+.ascend-app .day-header .btn{flex:none;}
+.ascend-app .week-card{background:linear-gradient(165deg,var(--card2),var(--card)); position:relative; overflow:hidden; border-radius:14px;}
+.ascend-app[data-theme="light"]:not([data-celebration="true"]) .week-card{background:linear-gradient(165deg,#fff2f7,#ffffff);}
+.ascend-app .week-card::after{content:''; position:absolute; inset:0; background:radial-gradient(circle at 100% 0%, var(--accent-glow), transparent 55%);
+  opacity:.5; pointer-events:none;}
+.ascend-app[data-theme="light"]:not([data-celebration="true"]) .week-card::after{background:radial-gradient(circle at 100% 0%, rgba(255,140,190,0.16), transparent 55%);}
+.ascend-app .week-nav{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:16px; position:relative;}
+.ascend-app .week-nav-mid{display:flex; flex:1; align-items:center; justify-content:space-between; gap:8px; min-width:0;}
+.ascend-app .week-nav-mid > span:first-child{display:flex; align-items:center; gap:5px; min-width:0;}
+.ascend-app .week-nav-mid b{font-size:15px; font-family:var(--font-display); letter-spacing:-.2px; white-space:nowrap;}
+.ascend-app .legend-info-btn{width:16px; height:16px; border-radius:50%; border:1px solid var(--line); background:var(--card2);
+  color:var(--sub); font-size:10px; font-style:italic; font-weight:700; font-family:Georgia,serif; line-height:1;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  padding:0; flex:none; transition:transform .15s var(--spring), background .15s ease, color .15s ease, border-color .15s ease;}
+.ascend-app .legend-info-btn:active{transform:scale(.88);}
+.ascend-app .legend-info-btn.active{background:color-mix(in srgb, var(--accent) 18%, var(--card3)); color:var(--accent2); border-color:var(--accent);}
+.ascend-app .badge.accent{background:color-mix(in srgb, var(--accent) 18%, var(--card3)); color:var(--accent2);}
+.ascend-app .navbtn{width:34px; height:34px; border-radius:11px; border:1px solid var(--line); background:var(--card2); color:var(--text);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
+  transition:transform .15s var(--spring), background .15s ease, opacity .15s ease;}
+.ascend-app .navbtn:active:not(:disabled){transform:scale(.9);}
+.ascend-app .navbtn:disabled{opacity:.35; cursor:not-allowed;}
+.ascend-app .week-path{position:relative; padding-top:2px;}
+.ascend-app .week-path-line{position:absolute; top:12px; left:calc(100%/14); right:calc(100%/14); height:3px; border-radius:3px;
+  background:var(--line); overflow:hidden; z-index:0;}
+.ascend-app .week-path-fill{height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:3px; transition:width .6s var(--ease);}
+.ascend-app .dots{display:flex; position:relative; z-index:1;}
+.ascend-app .day-dot{flex:1; display:flex; flex-direction:column; align-items:center; gap:7px; font-size:10px; color:var(--sub); cursor:pointer;}
+.ascend-app .dot{width:23px; height:23px; border-radius:50%; background:var(--card2); border:2px solid var(--line);
+  transition:transform .18s var(--spring), box-shadow .18s ease; position:relative;}
+.ascend-app .day-dot:active .dot{transform:scale(.82);}
+.ascend-app .dot.g{background:linear-gradient(150deg,#6bffb0,var(--green)); border-color:var(--green); box-shadow:0 2px 10px rgba(61,220,132,0.4);}
+.ascend-app .dot.y{background:linear-gradient(150deg,#ffe08a,var(--yellow)); border-color:var(--yellow); box-shadow:0 2px 10px rgba(255,204,77,0.35);}
+.ascend-app .dot.r{background:linear-gradient(150deg,#ff8a8a,var(--red)); border-color:var(--red); box-shadow:0 2px 10px rgba(255,92,92,0.35);}
+.ascend-app .dot.b{background:linear-gradient(150deg,#7fc2ff,var(--blue)); border-color:var(--blue); box-shadow:0 2px 10px rgba(61,139,255,0.35);}
+.ascend-app .dot.today{box-shadow:0 0 0 3px var(--accent), 0 0 10px var(--accent-glow);}
+.ascend-app .dot.today::after{content:''; position:absolute; inset:-5px; border-radius:50%; border:2px solid var(--accent);
+  opacity:.55; animation:ascendDotPulse 1.8s ease-out infinite;}
+@keyframes ascendDotPulse{0%{transform:scale(.75); opacity:.6;}100%{transform:scale(1.35); opacity:0;}}
 .ascend-app .dot.selected{box-shadow:0 0 0 2px var(--text);}
+.ascend-app .dow-label{font-weight:600; transition:color .2s ease;}
+.ascend-app .dow-label.is-today{color:var(--accent); font-weight:800;}
+.ascend-app .dow-label.is-sel:not(.is-today){color:var(--text); font-weight:800;}
+.ascend-app .legend-row{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px;}
+.ascend-app .legend-popover{padding:9px 10px; background:var(--card2); border:1px solid var(--line); border-radius:var(--radius-sm);
+  animation:ascendLegendIn .18s var(--spring);}
+.ascend-app .legend-item{display:flex; align-items:center; gap:6px; white-space:nowrap;}
+.ascend-app .legend-dot{width:8px; height:8px; border-radius:50%; display:inline-block; flex:none;}
+@keyframes ascendLegendIn{from{opacity:0; transform:translateY(-4px);}to{opacity:1; transform:translateY(0);}}
 
 .ascend-app .ach-row{margin-bottom:16px;}
 .ascend-app .ach-head{display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:6px;}
 .ascend-app .stepper{display:flex; gap:6px;}
-.ascend-app .step{flex:1; height:14px; border-radius:5px; background:var(--card2); border:1px solid var(--line); cursor:pointer;}
-.ascend-app .step.on{background:var(--accent);}
+.ascend-app .step{flex:1; height:14px; border-radius:5px; background:var(--card2); border:1px solid var(--line); cursor:pointer;
+  transition:background .2s var(--spring), transform .15s var(--spring), box-shadow .2s ease;}
+.ascend-app .step:active{transform:scaleY(.8);}
+.ascend-app .step.on{background:var(--accent); border-color:var(--accent); box-shadow:0 0 8px var(--accent-glow);}
 .ascend-app .chapter-input{display:flex; align-items:center; gap:8px; margin-top:8px;}
 .ascend-app .chapter-input input{width:70px; background:var(--card2); border:1px solid var(--line); border-radius:8px; padding:8px; text-align:center; font-size:14px;}
 
 .ascend-app .milestone-grid{display:flex; flex-wrap:wrap; gap:8px;}
-.ascend-app .ms{padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--card2); font-size:12.5px; font-weight:700; cursor:pointer; flex:1 1 30%; text-align:center;}
-.ascend-app .ms.on{background:var(--green); color:#08130c; border-color:var(--green);}
+.ascend-app .ms{padding:10px 12px; border-radius:12px; border:1px solid var(--line-soft); background:var(--card2); font-size:12.5px; font-weight:700; cursor:pointer; flex:1 1 30%; text-align:center;
+  transition:transform .15s var(--spring), background .2s ease, border-color .2s ease, box-shadow .2s ease;}
+.ascend-app .ms:active{transform:scale(.96);}
+.ascend-app .ms.on{background:var(--green); color:#08130c; border-color:var(--green); box-shadow:0 2px 10px rgba(61,220,132,0.3);}
 
 .ascend-app .pen-active{padding:16px; border-radius:var(--radius); text-align:center; font-weight:800;}
 .ascend-app .pen-level0{background:color-mix(in srgb,var(--green) 18%,var(--card));}
@@ -505,10 +691,10 @@ const STYLES = `
 .ascend-app .pen-level2,.ascend-app .pen-level3{background:color-mix(in srgb,#ff9a3d 22%,var(--card));}
 .ascend-app .pen-level4,.ascend-app .pen-level5{background:color-mix(in srgb,var(--red) 24%,var(--card));}
 .ascend-app .pen-list .task-row{align-items:flex-start;}
-.ascend-app .badge{font-size:10px; font-weight:800; padding:3px 8px; border-radius:20px; background:var(--card2); color:var(--sub);}
+.ascend-app .badge{font-size:10px; font-weight:800; padding:3px 8px; border-radius:20px; background:var(--card3); color:var(--sub);}
 .ascend-app .pen-meter{display:flex; gap:4px; margin-top:10px;}
-.ascend-app .pen-meter .seg{flex:1; height:8px; border-radius:4px; background:var(--card2); border:1px solid var(--line);}
-.ascend-app .pen-meter .seg.on{background:var(--red);}
+.ascend-app .pen-meter .seg{flex:1; height:8px; border-radius:4px; background:var(--card2); border:1px solid var(--line); transition:background .2s ease, box-shadow .2s ease;}
+.ascend-app .pen-meter .seg.on{background:var(--red); box-shadow:0 0 6px rgba(255,92,92,0.4);}
 
 .ascend-app .swatch-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;}
 .ascend-app .theme-swatch{width:68px; height:68px; border-radius:16px; border:2px solid var(--line); cursor:pointer; display:flex; align-items:center; justify-content:center; background:var(--card2); overflow:hidden; position:relative; transition:transform .12s ease, border-color .12s ease;}
@@ -518,23 +704,30 @@ const STYLES = `
 .ascend-app .swatch{width:34px; height:34px; border-radius:50%; border:2px solid var(--line); cursor:pointer; transition:transform .12s ease;}
 .ascend-app .swatch:active{transform:scale(.9);}
 .ascend-app .swatch.sel{border-color:var(--text); transform:scale(1.1);}
-.ascend-app .toggle-row{display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line);}
-.ascend-app .toggle-row:last-child{border-bottom:none;}
-.ascend-app .switch{width:46px; height:26px; border-radius:20px; background:var(--card2); border:1px solid var(--line); position:relative; cursor:pointer; transition:background .15s ease;}
-.ascend-app .switch.on{background:var(--accent);}
-.ascend-app .switch::after{content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,0.25);}
+.ascend-app .toggle-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; margin-bottom:8px;
+  background:var(--card2); border:1px solid var(--line-soft); border-radius:14px; transition:border-color .2s ease;}
+.ascend-app .toggle-row:last-child{margin-bottom:0;}
+.ascend-app .switch{width:46px; height:26px; border-radius:20px; background:var(--card3); border:1px solid var(--line); position:relative; cursor:pointer; transition:background .15s ease; flex:none;}
+.ascend-app .switch.on{background:var(--accent); border-color:var(--accent);}
+.ascend-app .switch::after{content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:left .2s var(--spring); box-shadow:0 1px 3px rgba(0,0,0,0.25);}
 .ascend-app .switch.on::after{left:22px;}
-.ascend-app .edit-task-row{display:flex; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);}
-.ascend-app .edit-task-row input[type=text]{flex:1; background:var(--card2); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px;}
-.ascend-app .edit-task-row input[type=number]{width:56px; background:var(--card2); border:1px solid var(--line); border-radius:8px; padding:7px 6px; font-size:13px; text-align:center;}
+.ascend-app .edit-task-row{display:flex; gap:8px; align-items:center; padding:9px 10px; margin-bottom:6px;
+  background:var(--card2); border:1px solid var(--line-soft); border-radius:12px;}
+.ascend-app .edit-task-row:last-child{margin-bottom:0;}
+.ascend-app .edit-task-row input[type=text]{flex:1; background:var(--card3); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px;}
+.ascend-app .edit-task-row input[type=number]{width:56px; background:var(--card3); border:1px solid var(--line); border-radius:8px; padding:7px 6px; font-size:13px; text-align:center;}
 .ascend-app .iconbtn{background:none; border:none; color:var(--sub); font-size:16px; cursor:pointer; padding:4px 6px;
   display:inline-flex; align-items:center; justify-content:center; border-radius:6px; transition:color .15s ease, background .15s ease;}
-.ascend-app .iconbtn:hover{color:var(--red); background:var(--card2);}
+.ascend-app .iconbtn:hover{color:var(--red); background:var(--card3);}
 .ascend-app .lockbar{display:flex; align-items:center; gap:8px; background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;}
+.ascend-app .icon{vertical-align:-3px; flex:none;}
+.ascend-app .lockbar .icon{color:var(--accent);}
 .ascend-app .hidden{display:none !important;}
 .ascend-app .arc-desc{font-size:12px; color:var(--sub); margin-bottom:8px;}
-.ascend-app .log-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:12px;}
-.ascend-app .log-row:last-child{border-bottom:none;}
+.ascend-app .log-row{display:flex; justify-content:space-between; align-items:center; padding:9px 12px; margin-bottom:6px;
+  background:var(--card2); border:1px solid var(--line-soft); border-radius:11px; font-size:12px;}
+.ascend-app .log-row:last-child{margin-bottom:0;}
+.ascend-app .log-row span{display:inline-flex; align-items:center; gap:5px;}
 
 .ascend-app .start-gate{display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:50px 20px;}
 .ascend-app .start-gate .big-badge{width:110px; height:110px; border-radius:50%; background:radial-gradient(circle at 35% 30%,var(--accent2),var(--accent)); box-shadow:0 0 40px 6px var(--accent); margin-bottom:18px; display:flex; align-items:center; justify-content:center; font-size:40px;}
@@ -581,11 +774,68 @@ function Ring({ pct, size = 64 }) {
   );
 }
 
+/* -- thin progress ring drawn around the rank badge, no label -- */
+function RankProgressRing({ pct, size = 92, stroke = 3, color }) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, off = c * (1 - clamp(pct, 0, 1));
+  return (
+    <svg className="rank-progress-ring" viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+      <circle className="rpr-bg" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} />
+      <circle
+        className="rpr-fg" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={off} style={{ stroke: color }}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+    </svg>
+  );
+}
+
+/* -- rank badge: core + spinning aura halo + tier-progress ring + rank-up burst -- */
+function RankBadge({ rank, score, size = 78 }) {
+  const ringSize = size + 14;
+  const prevTierRef = useRef(rank.tier);
+  const [burst, setBurst] = useState(false);
+
+  useEffect(() => {
+    if (rank.tier > prevTierRef.current) {
+      setBurst(true);
+      const t = setTimeout(() => setBurst(false), 1000);
+      prevTierRef.current = rank.tier;
+      return () => clearTimeout(t);
+    }
+    prevTierRef.current = rank.tier;
+  }, [rank.tier]);
+
+  const progress = useMemo(() => {
+    if (rank.name === "S+") return 1;
+    const t = tierFor(score);
+    if (t >= 5) return 1; // maxed out at S from score alone; S+ only via Final Ascent
+    return clamp((score - t * 18) / 18, 0, 1);
+  }, [score, rank.name]);
+
+  return (
+    <div className="rank-badge-wrap" style={{ width: ringSize, height: ringSize }}>
+      <div className="rank-aura" style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1] }} />
+      <RankProgressRing pct={progress} size={ringSize} color={rank.glow[1]} />
+      <div className="rank-core" style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1], width: size, height: size }}>
+        {rank.name}
+      </div>
+      {burst && (
+        <div className="rank-burst" style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1] }}>
+          <div className="flash" />
+          <div className="bring" />
+          <div className="bring r2" />
+          <div className="bring r3" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskRow({ id, name, xp, done, onToggle, disabled, unit = "XP" }) {
   return (
-    <div className={`task-row ${done ? "done" : ""}`}>
-      <div className={`chk ${done ? "on" : ""}`} onClick={disabled ? undefined : onToggle}>
-        {done ? "✓" : ""}
+    <div className={`task-row ${done ? "done" : ""} ${disabled ? "locked" : ""}`} onClick={disabled ? undefined : onToggle}>
+      <div className={`chk ${done ? "on" : ""}`}>
+        {done && <Icon name="check" size={13} className="chk-mark" />}
       </div>
       <div className="task-name">{name}</div>
       {xp !== null && <div className="task-xp">{xp} {unit}</div>}
@@ -644,41 +894,43 @@ function ThemeIcon({ id }) {
 }
 
 /* ============================= HUD ============================= */
-const SYNC_LABEL = {
-  synced: "☁️ Synced",
-  saving: "💾 Saving…",
-  loading: "☁️ Connecting…",
-  offline: "📴 Offline — saved on this device",
-  error: "⚠️ Sync error — saved on this device",
+const SYNC_META = {
+  synced: { icon: "cloud", label: "Synced" },
+  saving: { icon: "save", label: "Saving…" },
+  loading: { icon: "cloud", label: "Connecting…" },
+  offline: { icon: "cloud-off", label: "Offline — saved on this device" },
+  error: { icon: "alert", label: "Sync error — saved on this device" },
 };
 function Hud({ score, rank, syncStatus, showBadge, gameCompleted }) {
+  const syncMeta = SYNC_META[syncStatus] || SYNC_META.synced;
   return (
     <div className="hud">
-      <div className="hud-top">
-        {showBadge && (
-          <div className="rank-core" style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1] }}>
-            {rank.name}
-          </div>
-        )}
-        <div className="hud-mid">
-          <div className="hud-label">Final Campaign Score</div>
-          <div className="hud-score">
-            {score.toFixed(1)}
-            <span>/100</span>
-          </div>
-          <div className="hud-bar-track">
-            <div className="hud-bar-fill" style={{ width: `${score}%` }} />
-          </div>
-          <div className="hud-meta">
-            <span>{currentArcLabel.__lastLabel}</span>
-            <span>{SYNC_LABEL[syncStatus] || ""}</span>
+      <div className="hud-card">
+        <div className="hud-top">
+          {showBadge && <RankBadge rank={rank} score={score} />}
+          <div className="hud-mid">
+            <div className="hud-label">Final Campaign Score</div>
+            <div className="hud-score">
+              {score.toFixed(1)}
+              <span>/100</span>
+            </div>
+            <div className="hud-bar-track">
+              <div className="hud-bar-fill" style={{ width: `${score}%` }} />
+            </div>
+            <div className="hud-meta">
+              <span>{currentArcLabel.__lastLabel}</span>
+              <span className="sync-pill" data-state={syncStatus}>
+                <Icon name={syncMeta.icon} size={12} />
+                {syncMeta.label}
+              </span>
+            </div>
           </div>
         </div>
       </div>
       {gameCompleted && (
         <div className="celebrate grand">
-          <span className="pop" style={{ left: "8%", top: 6 }}>🏆</span>
-          <span className="pop" style={{ right: "8%", top: 6, animationDelay: ".3s" }}>🏆</span>
+          <span className="pop" style={{ left: "8%", top: 6 }}><Icon name="trophy" size={18} /></span>
+          <span className="pop" style={{ right: "8%", top: 6, animationDelay: ".3s" }}><Icon name="trophy" size={18} /></span>
           <div>Game completed successfully</div>
           <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.9, marginTop: 2 }}>
             Rank S+ reached. The Final Ascent is complete.
@@ -705,7 +957,7 @@ function LoginGate({ config, setConfig, onAuthed }) {
   if (mode === "setup") {
     return (
       <div className="start-gate">
-        <div className="big-badge">🔐</div>
+        <div className="big-badge"><Icon name="lock" size={40} /></div>
         <h2 style={{ margin: "0 0 8px" }}>Set up ASCEND</h2>
         <p className="small-muted" style={{ maxWidth: 280 }}>
           Nobody has logged in yet. The first person to set a PIN becomes the campaign owner.
@@ -731,7 +983,7 @@ function LoginGate({ config, setConfig, onAuthed }) {
   if (mode === "choose") {
     return (
       <div className="start-gate">
-        <div className="big-badge">🔐</div>
+        <div className="big-badge"><Icon name="lock" size={40} /></div>
         <h2 style={{ margin: "0 0 8px" }}>Log in</h2>
         <p className="small-muted" style={{ maxWidth: 280, marginBottom: 14 }}>Are you the owner, or viewing?</p>
         <button className="btn big" style={{ maxWidth: 260, marginBottom: 10 }} onClick={() => setMode("pin")}>Owner</button>
@@ -743,7 +995,7 @@ function LoginGate({ config, setConfig, onAuthed }) {
   if (mode === "pin") {
     return (
       <div className="start-gate">
-        <div className="big-badge">🔐</div>
+        <div className="big-badge"><Icon name="lock" size={40} /></div>
         <h2 style={{ margin: "0 0 8px" }}>Owner PIN</h2>
         <div className="field-row" style={{ maxWidth: 260, width: "100%" }}>
           <input type="password" placeholder="PIN" value={pinDraft} onChange={(e) => setPinDraft(e.target.value)} />
@@ -765,7 +1017,7 @@ function LoginGate({ config, setConfig, onAuthed }) {
   // viewer password
   return (
     <div className="start-gate">
-      <div className="big-badge">🔐</div>
+      <div className="big-badge"><Icon name="lock" size={40} /></div>
       <h2 style={{ margin: "0 0 8px" }}>Viewer Password</h2>
       {!config.viewerPassword ? (
         <p className="small-muted" style={{ maxWidth: 280 }}>The owner hasn't set a viewer password yet.</p>
@@ -794,14 +1046,14 @@ function LoginGate({ config, setConfig, onAuthed }) {
 function StartGate({ isOwner, onStart }) {
   return (
     <div className="start-gate">
-      <div className="big-badge">🏔️</div>
+      <div className="big-badge"><Icon name="mountain" size={40} /></div>
       <h2 style={{ margin: "0 0 8px" }}>ASCEND: The Takeover</h2>
       <p className="small-muted" style={{ maxWidth: 280 }}>
         33 weeks. 231 days. Campaign start: 17 Aug 2026.
       </p>
       {isOwner ? (
         <button className="btn big" style={{ maxWidth: 260, marginTop: 18 }} onClick={onStart}>
-          🚀 Begin the Campaign
+          <Icon name="rocket" size={16} /> Begin the Campaign
         </button>
       ) : (
         <p className="small-muted">Waiting for the campaign owner to start.</p>
@@ -815,6 +1067,7 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
   const [openAspect, setOpenAspect] = useState(null);
   const [compactExpanded, setCompactExpanded] = useState({ protein: false, planner: false, recap: false });
   const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [showLegend, setShowLegend] = useState(false);
 
   const t = todayStr();
   const sel = selectedDate;
@@ -879,22 +1132,22 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
     <>
       <div className="trio">
         <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, planner: !s.planner }))}>
-          <div className="ic">📝</div>
+          <div className="icon-chip sm" style={{ "--tone": "var(--blue)" }}><Icon name="note" size={15} /></div>
           <b>{plannerCount}</b>
           <span>Today's Plan</span>
         </div>
         <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, recap: !s.recap }))}>
-          <div className="ic">🗒️</div>
+          <div className="icon-chip sm" style={{ "--tone": "var(--accent)" }}><Icon name="clipboard" size={15} /></div>
           <b>{recapDone.length}</b>
           <span>Daily Recap</span>
         </div>
         <div className="trio-card" onClick={() => setCompactExpanded((s) => ({ ...s, protein: !s.protein }))}>
-          <div className="ic">🍗</div>
+          <div className="icon-chip sm" style={{ "--tone": "var(--green)" }}><Icon name="utensils" size={15} /></div>
           <b>{rec.protein || 0}g</b>
           <span>Protein</span>
         </div>
         <div className="trio-card" onClick={() => document.getElementById("aspect-detail")?.scrollIntoView({ behavior: "smooth" })}>
-          <div className="ic">⚡</div>
+          <div className="icon-chip sm" style={{ "--tone": "var(--yellow)" }}><Icon name="bolt" size={15} /></div>
           <b>{dayXP(days, config.tasks, sel)}</b>
           <span>XP</span>
         </div>
@@ -973,14 +1226,9 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
       )}
 
       <div className="section-title">Week {viewWeekN} Calendar</div>
-      <div className="card">
-        <div className="week-nav">
-          <button className="btn ghost sm" disabled={viewWeekN <= 1} onClick={() => setViewWeekN((w) => clamp(w - 1, 1, currentWeekN))}>←</button>
-          <b>Week {viewWeekN}</b>
-          <button className="btn ghost sm" disabled={viewWeekN >= currentWeekN} onClick={() => setViewWeekN((w) => clamp(w + 1, 1, currentWeekN))}>→</button>
-        </div>
-        <div className="dots">
-          {Array.from({ length: 7 }).map((_, i) => {
+      <div className="card week-card">
+        {(() => {
+          const weekStatuses = Array.from({ length: 7 }).map((_, i) => {
             const d = addDays(wStart, i);
             const dr = days[d];
             let cls = "";
@@ -989,18 +1237,63 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
             else if (dr && dr.leaveOrdinary) cls = "b";
             else if (dr) cls = dayXP(days, config.tasks, d) >= config.threshold ? "g" : "r";
             else cls = d < t ? "r" : "";
-            return (
-              <div className="day-dot" key={d} onClick={() => { if (d <= t) openDay(d); }}>
-                <div className={`dot ${cls} ${d === t ? "today" : ""} ${d === sel ? "selected" : ""}`} />
-                {dow[i]}
+            return { d, cls };
+          });
+          const elapsedDays = weekStatuses.filter((s) => s.d <= t).length;
+          const onTrackDays = weekStatuses.filter((s) => s.cls === "g" || s.cls === "y" || s.cls === "b").length;
+          return (
+            <>
+              <div className="week-nav">
+                <button
+                  className="navbtn" disabled={viewWeekN <= 1}
+                  onClick={() => setViewWeekN((w) => clamp(w - 1, 1, currentWeekN))}
+                ><Icon name="chevron-left" size={17} /></button>
+                <div className="week-nav-mid">
+                  <span>
+                    <b>Week {viewWeekN}</b>
+                    <button
+                      type="button"
+                      className={`legend-info-btn ${showLegend ? "active" : ""}`}
+                      aria-label="Show dot color legend"
+                      aria-expanded={showLegend}
+                      onClick={() => setShowLegend((v) => !v)}
+                    >
+                      i
+                    </button>
+                  </span>
+                  {elapsedDays > 0 && <span className="badge accent">{onTrackDays}/{elapsedDays} on track</span>}
+                </div>
+                <button
+                  className="navbtn" disabled={viewWeekN >= currentWeekN}
+                  onClick={() => setViewWeekN((w) => clamp(w + 1, 1, currentWeekN))}
+                ><Icon name="chevron-right" size={17} /></button>
               </div>
-            );
-          })}
-        </div>
-        <div className="small-muted" style={{ marginTop: 10 }}>🟢 sufficient XP · 🟡 paid leave · 🔵 leave · 🔴 insufficient XP · ring = today (IST)</div>
+              <div className="week-path">
+                <div className="week-path-line"><div className="week-path-fill" style={{ width: `${(elapsedDays / 7) * 100}%` }} /></div>
+                <div className="dots">
+                  {weekStatuses.map(({ d, cls }, i) => (
+                    <div className="day-dot" key={d} onClick={() => { if (d <= t) openDay(d); }}>
+                      <div className={`dot ${cls} ${d === t ? "today" : ""} ${d === sel ? "selected" : ""}`} />
+                      <span className={`dow-label ${d === t ? "is-today" : ""} ${d === sel ? "is-sel" : ""}`}>{dow[i]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          );
+        })()}
+        {showLegend && (
+          <div className="small-muted legend-row legend-popover" style={{ marginTop: 10 }}>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "var(--green)" }} />sufficient XP</span>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "var(--yellow)" }} />paid leave</span>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "var(--blue)" }} />leave</span>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "var(--red)" }} />insufficient XP</span>
+            <span className="legend-item">ring = today (IST)</span>
+          </div>
+        )}
         {sel !== t && (
           <div className="day-header" style={{ marginTop: 10 }}>
-            <span className="small-muted">Viewing &amp; editing {fmtDate(sel)} — everything planned and done that day is in Daily Recap above</span>
+            <span className="small-muted day-header-note">Viewing &amp; editing {fmtDate(sel)} — everything planned and done that day is in Daily Recap above</span>
             <button className="btn ghost sm" onClick={() => { setSelectedDate(t); setViewWeekN(currentWeekN); }}>Back to today</button>
           </div>
         )}
@@ -1073,20 +1366,20 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
           const pct = categoryCampaignPct(days, cat);
           return (
             <div className="aspect-mini" key={key} onClick={() => setOpenAspect((a) => (a === key ? null : key))}>
-              <Ring pct={pct} size={48} />
-              <div className="name">{cat.icon} {cat.label}</div>
+              <Ring pct={pct} size={64} />
+              <div className="name"><span className="emoji">{iconEmoji(cat.icon)}</span><span>{cat.label}</span></div>
             </div>
           );
         })}
         <div className="aspect-mini" onClick={() => setOpenAspect((a) => (a === "skills" ? null : "skills"))}>
-          <Ring pct={skillsPct(config, achievements)} size={48} />
-          <div className="name">🎓 Skills</div>
+          <Ring pct={skillsPct(config, achievements)} size={64} />
+          <div className="name"><span className="emoji">{iconEmoji("graduation")}</span><span>Skills</span></div>
         </div>
       </div>
       {openAspect && openAspect !== "skills" && (
         <div className="card" id="aspect-detail" style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>
-            {config.tasks[openAspect].icon} {config.tasks[openAspect].label}
+          <div style={{ fontWeight: 800, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+            <CatIcon icon={config.tasks[openAspect].icon} size={15} /> {config.tasks[openAspect].label}
           </div>
           {config.tasks[openAspect].tasks.map((tk) => (
             <TaskRowStatic key={tk.id} name={tk.name} xp={tk.xp} />
@@ -1095,7 +1388,9 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
       )}
       {openAspect === "skills" && (
         <div className="card" id="aspect-detail" style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>🎓 Skills</div>
+          <div style={{ fontWeight: 800, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon name="graduation" size={15} /> Skills
+          </div>
           <TaskRow
             name="Driving" xp={config.skillXP?.driving ?? 3} done={!!achievements.driving} disabled={!isOwner}
             onToggle={() => { if (!isOwner) return; setAchievements((p) => ({ ...p, driving: !p.driving })); onAfterTaskToggle(); }}
@@ -1358,7 +1653,9 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, 
       <div className="section-title">Access</div>
       <div className="card">
         <div className="lockbar">
-          {isOwner ? "🔓 Owner mode — you can edit everything." : "🔒 View-only mode — you can watch progress but not edit it."}
+          {isOwner
+            ? <><Icon name="unlock" size={14} /> Owner mode — you can edit everything.</>
+            : <><Icon name="lock" size={14} /> View-only mode — you can watch progress but not edit it.</>}
         </div>
         {isOwner && (
           <>
@@ -1371,7 +1668,7 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, 
             <div style={{ marginTop: 6, maxHeight: 180, overflowY: "auto" }}>
               {log.length ? log.map((l, i) => (
                 <div className="log-row" key={i}>
-                  <span>{l.role === "owner" ? "🔓 Owner" : "👁️ Viewer"}</span>
+                  <span>{l.role === "owner" ? <><Icon name="unlock" size={12} /> Owner</> : <><Icon name="eye" size={12} /> Viewer</>}</span>
                   <span>{new Date(l.ts).toLocaleString()}</span>
                 </div>
               )) : <div className="small-muted">No logins recorded yet.</div>}
@@ -1436,7 +1733,7 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, 
               onChange={(e) => updateTask(tk.catKey, tk.id, "xp", Number(e.target.value) || 1)}
             />
             {isOwner && (
-              <button className="iconbtn" title="Delete task" onClick={() => deleteTask(tk.catKey, tk.id)}>✕</button>
+              <button className="iconbtn" title="Delete task" onClick={() => deleteTask(tk.catKey, tk.id)}><Icon name="x" size={14} /></button>
             )}
           </div>
         ))}
@@ -1490,34 +1787,24 @@ function SettingsTab({ config, setConfig, isOwner, setIsOwner, onResetCampaign, 
 }
 
 /* ============================= SPARKLE LAYER ============================= */
-// Ambient particles that make each theme visibly *look* like its name across
-// the whole app — not just as a tiny picker icon.
-function themeParticles(theme, celebration) {
+// Ambient celebration particles for the "Final Ascent" completion state only —
+// the earlier per-theme twinkling stars / floating dots have been removed.
+function themeParticles(celebration) {
   if (celebration) return { shapes: [{ shape: "star", color: "#ffe873" }, { shape: "dot", color: "#ff9de2" }, { shape: "dot", color: "#7c5cff" }], anim: "float" };
-  switch (theme) {
-    case "dark": return { shapes: [{ shape: "star", color: "#f2f2ff" }, { shape: "dot", color: "#cfd6ff" }], anim: "twinkleDrift" };
-    case "light": return { shapes: [{ shape: "dot", color: "#ffd166" }, { shape: "cloud", color: "#ffffff" }], anim: "drift" };
-    default: return { shapes: [{ shape: "dot", color: "#ffffff" }], anim: "float" };
-  }
+  return null;
 }
-function SparkleLayer({ theme, celebration }) {
-  const { shapes, anim } = useMemo(() => themeParticles(theme, celebration), [theme, celebration]);
+function SparkleLayer({ celebration }) {
+  const parts = useMemo(() => themeParticles(celebration), [celebration]);
   const particles = useMemo(() => {
+    if (!parts) return [];
+    const { shapes, anim } = parts;
     return Array.from({ length: 14 }).map((_, i) => {
       const { shape, color } = shapes[i % shapes.length];
       const size = 6 + Math.random() * 8;
-      if (anim === "drift") {
-        return { key: i, shape, color, size, duration: 14 + Math.random() * 12, delay: Math.random() * 14, style: { top: `${5 + Math.random() * 45}%`, left: "-10%" }, cls: "drift" };
-      }
-      if (anim === "fall") {
-        return { key: i, shape, color, size, duration: 8 + Math.random() * 8, delay: Math.random() * 10, style: { left: `${Math.random() * 100}%`, top: "-40px" }, cls: "fall" };
-      }
-      if (anim === "twinkleDrift") {
-        return { key: i, shape, color, size: size * 0.8, duration: 1.4 + Math.random() * 1.8, delay: Math.random() * 3, style: { top: `${Math.random() * 90}%`, left: `${Math.random() * 100}%` }, cls: "twinkleDrift" };
-      }
-      return { key: i, shape, color, size, duration: 8 + Math.random() * 10, delay: Math.random() * 10, style: { left: `${Math.random() * 100}%`, bottom: "-40px" }, cls: "float" };
+      return { key: i, shape, color, size, duration: 8 + Math.random() * 10, delay: Math.random() * 10, style: { left: `${Math.random() * 100}%`, bottom: "-40px" }, cls: anim };
     });
-  }, [shapes, anim]);
+  }, [parts]);
+  if (!parts) return null;
   return (
     <div className="sparkle-layer">
       {particles.map((p) => (
@@ -1535,10 +1822,10 @@ function SparkleLayer({ theme, celebration }) {
 
 /* ============================= MAIN APP ============================= */
 const TABS = [
-  { id: "home", label: "Home", ic: "🏠" },
-  { id: "goals", label: "Milestone & Goals", ic: "🏆" },
-  { id: "penalties", label: "Penalties", ic: "⚔️" },
-  { id: "settings", label: "Settings", ic: "⚙️" },
+  { id: "home", label: "Home", ic: "home" },
+  { id: "goals", label: "Milestone & Goals", ic: "trophy" },
+  { id: "penalties", label: "Penalties", ic: "shield" },
+  { id: "settings", label: "Settings", ic: "gear" },
 ];
 
 export default function App() {
@@ -1756,9 +2043,9 @@ export default function App() {
       style={{ "--accent": config.accent, "--accent2": config.accent }}
     >
       <style>{STYLES}</style>
-      <SparkleLayer theme={config.theme} celebration={gameCompleted} />
+      <SparkleLayer celebration={gameCompleted} />
       <div className="app">
-        <div className={`ptr ${ptrSpin ? "spin" : ""} ${ptrY <= -50 ? "hidden" : ""}`} style={{ top: ptrY }}>🔄</div>
+        <div className={`ptr ${ptrSpin ? "spin" : ""} ${ptrY <= -50 ? "hidden" : ""}`} style={{ top: ptrY }}><Icon name="refresh" size={16} /></div>
 
         {!authRole ? (
           <div className="scroll">
@@ -1811,7 +2098,7 @@ export default function App() {
                   key={tab.id} className={`tab ${activeTab === tab.id ? "active" : ""}`}
                   onClick={() => setActiveTab(tab.id)}
                 >
-                  <span className="ic">{tab.ic}</span>
+                  <span className="ic"><Icon name={tab.ic} size={19} /></span>
                   {tab.label}
                 </button>
               ))}
