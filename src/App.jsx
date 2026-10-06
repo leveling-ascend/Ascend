@@ -678,7 +678,6 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
 .ascend-app .ag-tint{margin-bottom:8px;}
 .ascend-app .ag-tint:last-child{margin-bottom:0;}
 .ascend-app .ag-tint .task-swipe{margin-bottom:0;}
-.ascend-app .ag-tint .task-row, .ascend-app .ag-tint .task-row.done{border-left:3px solid var(--ag);}
 
 .ascend-app .field-row{display:flex; gap:8px; margin-top:10px;}
 .ascend-app .field-row input,.ascend-app .field-row textarea{flex:1; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; transition:border-color .15s ease;}
@@ -1594,39 +1593,16 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
 
       <div className="section-title">Daily Tasks</div>
       <div className="card">
-        {taskGroups.map((g) => {
-          const total = g.cat.tasks.length;
-          if (total === 0) return null;
-          const allDone = g.pending.length === 0;
-          const collapsed = allDone || !!collapsedGroups[g.key];
-          return (
-            <div className="aspect-group" key={g.key} style={{ "--ag": g.color }}>
-              <button
-                className={`aspect-head ${allDone ? "complete" : ""} ${collapsed ? "collapsed" : ""}`}
-                onClick={() => { if (!allDone) setCollapsedGroups((c) => ({ ...c, [g.key]: !c[g.key] })); }}
-                aria-expanded={!collapsed}
-              >
-                <span className="ag-bar" />
-                <span className="ag-name">{g.cat.label}</span>
-                <span className="ag-count">
-                  {allDone && <Icon name="check" size={11} />}
-                  {g.done.length}/{total}
-                </span>
-                {!allDone && <Icon name="chevron-down" size={15} />}
-              </button>
-              {!collapsed && g.pending.map((tk) => (
-                <div className="ag-tint" key={tk.id}>
-                  <TaskRow
-                    id={tk.id} name={tk.name} xp={tk.xp}
-                    done={false} swipe
-                    disabled={!isOwner}
-                    onToggle={() => toggleTask(tk.id)}
-                  />
-                </div>
-              ))}
-            </div>
-          );
-        })}
+        {pendingDailyTasks.map((tk) => (
+          <div className="ag-tint" key={tk.id}>
+            <TaskRow
+              id={tk.id} name={tk.name} xp={tk.xp}
+              done={false} swipe
+              disabled={!isOwner}
+              onToggle={() => toggleTask(tk.id)}
+            />
+          </div>
+        ))}
         {pendingDailyTasks.length === 0 && doneDailyTasks.length > 0 && (
           <div className="small-muted" style={{ textAlign: "center", padding: "6px 0 2px" }}>All daily tasks complete</div>
         )}
