@@ -178,6 +178,15 @@ function fmtDate(dstr) {
   return dt.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 }
 
+function monthStartOf(dstr) {
+  return dstr.slice(0, 7) + "-01";
+}
+function shiftMonth(monthStr, n) {
+  const [y, m] = monthStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+
 /* ============================= LOCAL STORAGE ============================= */
 const LS_KEYS = {
   config: "ascend:config",
@@ -342,7 +351,7 @@ function Icon({ name, size = 18, className = "", style }) {
     case "home": return <svg {...p}><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9" /></svg>;
     case "trophy": return <svg {...p}><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" /><path d="M8 5H5a2 2 0 0 0 0 4h1.6" /><path d="M16 5h3a2 2 0 0 1 0 4h-1.6" /><path d="M12 13v3" /><path d="M9 20h6" /><path d="M10 16.5h4l.5 3.5h-5l.5-3.5Z" /></svg>;
     case "shield": return <svg {...p}><path d="M12 3.2 19 6v6c0 4.6-3 8.2-7 9.3-4-1.1-7-4.7-7-9.3V6l7-2.8Z" /><path d="m9.3 12 1.9 1.9 3.5-3.8" /></svg>;
-    case "gear": return <svg {...p}><circle cx="12" cy="12" r="3" /><path d="M19.4 13a7.8 7.8 0 0 0 0-2l1.9-1.4-2-3.4-2.2.5a7.9 7.9 0 0 0-1.7-1L15 3.5h-4l-.4 2.2a7.9 7.9 0 0 0-1.7 1l-2.2-.5-2 3.4L6.6 11a7.8 7.8 0 0 0 0 2l-1.9 1.4 2 3.4 2.2-.5c.5.4 1.1.75 1.7 1l.4 2.2h4l.4-2.2c.6-.25 1.2-.6 1.7-1l2.2.5 2-3.4L19.4 13Z" /></svg>;
+    case "gear": return <svg {...p}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>;
     case "lock": return <svg {...p}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
     case "unlock": return <svg {...p}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.5-1.9" /></svg>;
     case "eye": return <svg {...p}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
@@ -363,6 +372,8 @@ function Icon({ name, size = 18, className = "", style }) {
     case "refresh": return <svg {...p}><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 4v5h-5" /></svg>;
     case "chevron-left": return <svg {...p}><path d="M15 5 8 12l7 7" /></svg>;
     case "chevron-right": return <svg {...p}><path d="m9 5 7 7-7 7" /></svg>;
+    case "chevron-down": return <svg {...p}><path d="m6 9 6 6 6-6" /></svg>;
+    case "calendar": return <svg {...p}><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17" /><path d="M8 3v4M16 3v4" /><path d="M8 14h.01M12 14h.01M16 14h.01M8 17.2h.01M12 17.2h.01" /></svg>;
     case "x": return <svg {...p}><path d="M6 6l12 12M18 6 6 18" /></svg>;
     case "check": return <svg {...p}><path d="M5 12.5 9.5 17 19 7" /></svg>;
     default: return null;
@@ -386,8 +397,22 @@ function iconEmoji(icon) {
   return ICON_EMOJI[icon] || icon;
 }
 
+// Each aspect gets its own ring color. Known categories use a fixed hue;
+// any custom category falls back to a palette by position.
+const ASPECT_COLORS = {
+  strength: "#ff6b57",   // coral red
+  intellect: "#3d8bff",  // blue
+  discipline: "#ffb14d", // amber
+  skills: "#3ddc84",     // green
+};
+const ASPECT_FALLBACK = ["#c08bff", "#4fd0ff", "#ff5c8a", "#ffcc4d"];
+function aspectColor(key, index = 0) {
+  return ASPECT_COLORS[key] || ASPECT_FALLBACK[index % ASPECT_FALLBACK.length];
+}
+
 /* ============================= STYLES ============================= */
 const STYLES = `
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&family=Orbitron:wght@700;800&display=swap");
 html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transparent;}
 #root, #__next{height:100%;}
 .ascend-app{
@@ -402,8 +427,8 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
   --spring:cubic-bezier(.34,1.56,.64,1);
   --ease:cubic-bezier(.22,1,.36,1);
   --bg-glow:radial-gradient(ellipse 120% 60% at 50% -10%, rgba(124,92,255,0.16), transparent 60%);
-  --font: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  --font-display: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font: "Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-display: "Sora","Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 }
 .ascend-app[data-theme="light"]{
   --bg:#f3f1ea; --bg2:#ffffff; --card:#ffffff; --card2:#f6f4ee; --card3:#efece2; --nav-bg:#ffffff;
@@ -450,7 +475,21 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
 .ascend-app .ptr.spin{animation:ascendSpin .7s linear infinite;}
 @keyframes ascendSpin{to{transform:translateX(-50%) rotate(360deg);}}
 
-.ascend-app .hud{position:sticky; top:0; z-index:20; padding:14px 14px 10px; background:linear-gradient(180deg,var(--bg) 55%,transparent);
+.ascend-app .topbar{position:sticky; top:0; z-index:25; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  height:calc(52px + env(safe-area-inset-top, 0px)); padding:env(safe-area-inset-top, 0px) 14px 0; flex:none;
+  background:color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line-soft);}
+.ascend-app .brand-wrap{display:flex; align-items:center; gap:9px; min-width:0;}
+.ascend-app .brand-wrap .icon{color:var(--accent); filter:drop-shadow(0 0 6px var(--accent-glow));}
+.ascend-app .topbar .brand{font-family:"Orbitron",var(--font-display); font-weight:800; font-size:19px; letter-spacing:3px; line-height:1; color:var(--text);}
+.ascend-app .topbar-btn{width:38px; height:38px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; padding:0;
+  background:var(--card2); border:1px solid var(--line); color:var(--sub); cursor:pointer;
+  transition:transform .15s var(--spring), background .2s ease, color .2s ease, border-color .2s ease;}
+.ascend-app .topbar-btn:active{transform:scale(.9);}
+.ascend-app .topbar-btn .icon{transition:transform .35s var(--spring);}
+.ascend-app .topbar-btn.active{color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, var(--card2)); border-color:color-mix(in srgb, var(--accent) 45%, var(--line));}
+.ascend-app .topbar-btn.active .icon{transform:rotate(60deg);}
+.ascend-app .hud{position:sticky; top:calc(52px + env(safe-area-inset-top, 0px)); z-index:20; padding:14px 14px 10px; background:linear-gradient(180deg,var(--bg) 55%,transparent);
   backdrop-filter:blur(6px);}
 .ascend-app .hud-card{background:linear-gradient(165deg,var(--card3),var(--card)); border:1px solid var(--line);
   border-radius:14px; padding:16px; box-shadow:var(--shadow-lg); position:relative; overflow:hidden;}
@@ -459,12 +498,25 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
   opacity:.7; pointer-events:none;}
 .ascend-app[data-theme="light"]:not([data-celebration="true"]) .hud-card::after{background:radial-gradient(circle at 15% 0%, rgba(255,140,190,0.16), transparent 55%);}
 .ascend-app .hud-top{display:flex; align-items:center; gap:16px; position:relative;}
-.ascend-app .rank-core{position:relative; width:78px; height:78px; flex:none; border-radius:50%;
-  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:21px; letter-spacing:.5px;
-  font-family:var(--font-display);
-  background:radial-gradient(circle at 35% 30%, var(--rc2), var(--rc1) 70%);
-  box-shadow:0 0 0 4px var(--card), 0 0 28px 3px var(--rc1), inset 0 0 14px rgba(255,255,255,0.25);
-  color:#0a0c14; transition:all .6s var(--ease);}
+.ascend-app .rank-core{position:relative; width:78px; height:78px; flex:none; border-radius:50%; overflow:hidden;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0;
+  font-family:var(--font-display); color:var(--rc-text,#0a0c14);
+  background:
+    radial-gradient(circle at 50% 118%, color-mix(in srgb, var(--rc1) 70%, #000) 0%, transparent 55%),
+    radial-gradient(circle at 32% 26%, var(--rc2) 0%, var(--rc1) 72%);
+  box-shadow:0 0 0 3px var(--card), 0 0 0 4.5px color-mix(in srgb, var(--rc2) 65%, transparent),
+    0 0 26px 3px color-mix(in srgb, var(--rc1) 80%, transparent), inset 0 2px 3px rgba(255,255,255,0.45), inset 0 -6px 12px rgba(0,0,0,0.25);
+  transition:all .6s var(--ease); animation:rankGlowPulse 3.2s ease-in-out infinite;}
+.ascend-app .rank-core::before{content:''; position:absolute; top:5%; left:12%; width:76%; height:44%; border-radius:50%;
+  background:linear-gradient(180deg, rgba(255,255,255,0.42), rgba(255,255,255,0)); pointer-events:none;}
+.ascend-app .rank-core::after{content:''; position:absolute; inset:0; border-radius:50%; pointer-events:none;
+  background:linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.35) 50%, transparent 62%); background-size:250% 100%;
+  animation:rankShine 4.5s ease-in-out infinite;}
+.ascend-app .rank-cap{position:relative; z-index:1; font-size:7.5px; font-weight:800; letter-spacing:2.2px; text-indent:2.2px; opacity:.72; line-height:1; margin-bottom:2px;}
+.ascend-app .rank-letter{position:relative; z-index:1; font-size:27px; font-weight:800; letter-spacing:.5px; line-height:1; text-shadow:var(--rc-shadow, 0 1px 0 rgba(255,255,255,0.35));}
+@keyframes rankGlowPulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.12);}}
+@keyframes rankShine{0%,55%{background-position:140% 0;}100%{background-position:-60% 0;}}
+@media (prefers-reduced-motion: reduce){.ascend-app .rank-core,.ascend-app .rank-core::after{animation:none;}}
 
 /* -- rank badge wrap: aura ring + tier-progress ring + rank-up burst -- */
 .ascend-app .rank-badge-wrap{position:relative; flex:none;}
@@ -521,9 +573,9 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
   background:color-mix(in srgb, var(--nav-bg) 95%, transparent);
   backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
   border:1px solid color-mix(in srgb, var(--text) 12%, var(--line));
-  border-radius:24px; box-shadow:0 10px 30px rgba(0,0,0,0.4), 0 2px 10px rgba(0,0,0,0.22);
+  border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,0.4), 0 2px 10px rgba(0,0,0,0.22);
   padding:6px; gap:2px; max-width:492px; margin:0 auto; width:calc(100% - 28px);}
-.ascend-app .tab{flex:1; border:none; background:transparent; padding:8px 2px; border-radius:12px; font-size:10.5px; font-weight:700;
+.ascend-app .tab{flex:1; border:none; background:transparent; padding:8px 2px; border-radius:9px; font-size:10.5px; font-weight:700;
   color:var(--sub); display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; letter-spacing:.3px;
   transition:color .15s ease, background .2s var(--spring), transform .15s var(--spring);}
 .ascend-app .tab:active{transform:scale(.93);}
@@ -563,12 +615,12 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
 .ascend-app[data-theme="light"]:not([data-celebration="true"]) .ring .bg{stroke:rgba(20,20,30,0.15);}
 .ascend-app .ring{width:48px; height:48px; margin:0 auto;}
 .ascend-app .ring.big{width:72px; height:72px;}
-.ascend-app .ring circle{fill:none; stroke-width:6;}
-.ascend-app .ring.big circle{stroke-width:7;}
+.ascend-app .ring circle{fill:none; stroke-width:5.5;}
+.ascend-app .ring.big circle{stroke-width:6;}
 .ascend-app .ring .bg{stroke:var(--card2);}
 .ascend-app .ring .fg{stroke:var(--accent); stroke-linecap:round; transition:stroke-dashoffset .6s ease;}
-.ascend-app .ring text{font-size:12px; font-weight:800; fill:var(--text);}
-.ascend-app .ring.big text{font-size:16px;}
+.ascend-app .ring text{font-size:10px; font-weight:800; fill:var(--text);}
+.ascend-app .ring.big text{font-size:13px;}
 
 .ascend-app .task-group{margin-bottom:10px;}
 .ascend-app .task-group-title{font-size:11px; font-weight:800; color:var(--sub2); text-transform:uppercase; letter-spacing:1px; margin:16px 2px 8px;}
@@ -596,6 +648,37 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
 .ascend-app .task-row.done .task-xp{background:color-mix(in srgb, var(--accent) 20%, var(--card3)); color:var(--accent);}
 .ascend-app .task-row.static .task-name{font-weight:500;}
 .ascend-app .task-row.static{background:var(--card2);}
+.ascend-app .task-swipe{position:relative; margin-bottom:8px; border-radius:14px; overflow:hidden;}
+.ascend-app .task-swipe:last-child{margin-bottom:0;}
+.ascend-app .task-swipe .task-row{margin-bottom:0; position:relative; z-index:1; touch-action:pan-y; user-select:none; -webkit-user-select:none;}
+.ascend-app .swipe-bg{position:absolute; inset:0; display:flex; align-items:center; gap:6px; padding:0 18px; border-radius:14px;
+  font-size:12px; font-weight:800; letter-spacing:.3px; color:var(--accent); background:color-mix(in srgb, var(--accent) 22%, var(--card2));
+  justify-content:flex-start; pointer-events:none; transition:background .15s ease;}
+.ascend-app .swipe-bg.from-right{justify-content:flex-end;}
+.ascend-app .swipe-bg.armed{background:color-mix(in srgb, var(--accent) 38%, var(--card2));}
+.ascend-app .done-toggle{display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:8px; padding:11px 14px;
+  background:transparent; border:1px dashed var(--line); border-radius:14px; color:var(--sub); font-size:13px; font-weight:700; cursor:pointer;
+  transition:background .2s ease, border-color .2s ease, transform .15s var(--spring);}
+.ascend-app .done-toggle:active{transform:scale(.98);}
+.ascend-app .done-toggle:hover{border-color:var(--accent); color:var(--text);}
+.ascend-app .done-toggle .icon{transition:transform .25s var(--spring);}
+.ascend-app .done-toggle.open .icon{transform:rotate(180deg);}
+.ascend-app .done-list{margin-top:8px; animation:ascendLegendIn .2s var(--spring);}
+.ascend-app .aspect-group{margin-bottom:14px;}
+.ascend-app .aspect-group:last-child{margin-bottom:0;}
+.ascend-app .aspect-head{display:flex; align-items:center; gap:8px; width:100%; padding:2px 2px 9px; background:transparent; border:none;
+  color:var(--sub); font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; cursor:pointer;}
+.ascend-app .aspect-head.complete{cursor:default; padding-bottom:0;}
+.ascend-app .ag-bar{width:4px; height:15px; border-radius:3px; flex:none; background:var(--ag); box-shadow:0 0 8px color-mix(in srgb, var(--ag) 55%, transparent);}
+.ascend-app .ag-name{flex:1; text-align:left; color:var(--ag); display:flex; align-items:center; gap:6px;}
+.ascend-app .ag-count{display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:800; letter-spacing:.2px; padding:3px 9px; border-radius:20px;
+  background:color-mix(in srgb, var(--ag) 18%, var(--card3)); color:var(--ag);}
+.ascend-app .aspect-head .icon-chevron-down{color:var(--sub); transition:transform .25s var(--spring);}
+.ascend-app .aspect-head.collapsed .icon-chevron-down{transform:rotate(-90deg);}
+.ascend-app .ag-tint{margin-bottom:8px;}
+.ascend-app .ag-tint:last-child{margin-bottom:0;}
+.ascend-app .ag-tint .task-swipe{margin-bottom:0;}
+.ascend-app .ag-tint .task-row, .ascend-app .ag-tint .task-row.done{border-left:3px solid var(--ag);}
 
 .ascend-app .field-row{display:flex; gap:8px; margin-top:10px;}
 .ascend-app .field-row input,.ascend-app .field-row textarea{flex:1; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; transition:border-color .15s ease;}
@@ -626,7 +709,8 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
   opacity:.5; pointer-events:none;}
 .ascend-app[data-theme="light"]:not([data-celebration="true"]) .week-card::after{background:radial-gradient(circle at 100% 0%, rgba(255,140,190,0.16), transparent 55%);}
 .ascend-app .week-nav{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:16px; position:relative;}
-.ascend-app .week-nav-mid{display:flex; flex:1; align-items:center; justify-content:space-between; gap:8px; min-width:0;}
+.ascend-app .week-nav-mid{display:flex; flex:1; align-items:center; justify-content:space-between; gap:8px; min-width:0; cursor:pointer; min-height:40px; border-radius:10px;}
+.ascend-app .week-nav-mid:active .week-title-btn{transform:scale(.97);}
 .ascend-app .week-nav-mid > span:first-child{display:flex; align-items:center; gap:5px; min-width:0;}
 .ascend-app .week-nav-mid b{font-size:15px; font-family:var(--font-display); letter-spacing:-.2px; white-space:nowrap;}
 .ascend-app .legend-info-btn{width:16px; height:16px; border-radius:50%; border:1px solid var(--line); background:var(--card2);
@@ -642,26 +726,53 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
 .ascend-app .navbtn:active:not(:disabled){transform:scale(.9);}
 .ascend-app .navbtn:disabled{opacity:.35; cursor:not-allowed;}
 .ascend-app .week-path{position:relative; padding-top:2px;}
-.ascend-app .week-path-line{position:absolute; top:12px; left:calc(100%/14); right:calc(100%/14); height:3px; border-radius:3px;
+.ascend-app .week-path-line{position:absolute; top:9px; left:calc(100%/14); right:calc(100%/14); height:3px; border-radius:3px;
   background:var(--line); overflow:hidden; z-index:0;}
 .ascend-app .week-path-fill{height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:3px; transition:width .6s var(--ease);}
 .ascend-app .dots{display:flex; position:relative; z-index:1;}
-.ascend-app .day-dot{flex:1; display:flex; flex-direction:column; align-items:center; gap:7px; font-size:10px; color:var(--sub); cursor:pointer;}
-.ascend-app .dot{width:23px; height:23px; border-radius:50%; background:var(--card2); border:2px solid var(--line);
+.ascend-app .day-dot{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:10px; color:var(--sub); cursor:pointer;}
+.ascend-app .dot{width:17px; height:17px; border-radius:50%; background:var(--card2); border:2px solid var(--line);
   transition:transform .18s var(--spring), box-shadow .18s ease; position:relative;}
 .ascend-app .day-dot:active .dot{transform:scale(.82);}
 .ascend-app .dot.g{background:linear-gradient(150deg,#6bffb0,var(--green)); border-color:var(--green); box-shadow:0 2px 10px rgba(61,220,132,0.4);}
 .ascend-app .dot.y{background:linear-gradient(150deg,#ffe08a,var(--yellow)); border-color:var(--yellow); box-shadow:0 2px 10px rgba(255,204,77,0.35);}
 .ascend-app .dot.r{background:linear-gradient(150deg,#ff8a8a,var(--red)); border-color:var(--red); box-shadow:0 2px 10px rgba(255,92,92,0.35);}
 .ascend-app .dot.b{background:linear-gradient(150deg,#7fc2ff,var(--blue)); border-color:var(--blue); box-shadow:0 2px 10px rgba(61,139,255,0.35);}
-.ascend-app .dot.today{box-shadow:0 0 0 3px var(--accent), 0 0 10px var(--accent-glow);}
-.ascend-app .dot.today::after{content:''; position:absolute; inset:-5px; border-radius:50%; border:2px solid var(--accent);
+.ascend-app .dot.today{box-shadow:0 0 0 2px var(--accent), 0 0 8px var(--accent-glow);}
+.ascend-app .dot.today::after{content:''; position:absolute; inset:-4px; border-radius:50%; border:1.5px solid var(--accent);
   opacity:.55; animation:ascendDotPulse 1.8s ease-out infinite;}
 @keyframes ascendDotPulse{0%{transform:scale(.75); opacity:.6;}100%{transform:scale(1.35); opacity:0;}}
 .ascend-app .dot.selected{box-shadow:0 0 0 2px var(--text);}
 .ascend-app .dow-label{font-weight:600; transition:color .2s ease;}
 .ascend-app .dow-label.is-today{color:var(--accent); font-weight:800;}
 .ascend-app .dow-label.is-sel:not(.is-today){color:var(--text); font-weight:800;}
+.ascend-app .week-title-btn{display:inline-flex; align-items:center; gap:4px; background:none; border:none; padding:8px 4px 8px 0; margin:0;
+  color:var(--text); cursor:pointer; font:inherit; border-radius:8px; transition:transform .15s var(--spring);}
+.ascend-app .week-title-btn:active{transform:scale(.96);}
+.ascend-app .week-title-btn .icon-calendar{color:var(--accent2);}
+.ascend-app .week-title-btn .icon-chevron-down{color:var(--sub); transition:transform .25s var(--spring), color .2s ease;}
+.ascend-app .week-title-btn.open .icon-chevron-down{transform:rotate(180deg); color:var(--accent2);}
+.ascend-app .cal-panel{margin-top:14px; padding-top:12px; border-top:1px solid var(--line); position:relative; animation:ascendLegendIn .2s var(--spring);}
+.ascend-app .cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.ascend-app .cal-head b{font-size:14px; font-family:var(--font-display); letter-spacing:-.2px;}
+.ascend-app .cal-grid{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px; padding:0 10px;}
+.ascend-app .cal-dow{margin-bottom:6px;}
+.ascend-app .cal-dow span{text-align:center; font-size:10px; font-weight:700; color:var(--sub);}
+.ascend-app .cal-cell{width:100%; height:32px; display:flex; align-items:center; justify-content:center; position:relative;
+  padding:0; border-radius:9px; border:1.5px solid transparent; background:var(--card2); color:var(--text); font:inherit; font-size:11px; font-weight:700;
+  cursor:pointer; transition:transform .15s var(--spring), box-shadow .18s ease;}
+.ascend-app .cal-cell:active:not(:disabled){transform:scale(.9);}
+.ascend-app .cal-cell:disabled{cursor:default;}
+.ascend-app .cal-cell.empty{background:none; border:none; pointer-events:none;}
+.ascend-app .cal-cell.out{background:none; opacity:.25;}
+.ascend-app .cal-cell:disabled:not(.out):not(.empty){opacity:.55;}
+.ascend-app .cal-cell.in-week{border-color:color-mix(in srgb, var(--accent) 55%, transparent);}
+.ascend-app .cal-cell.g{background:linear-gradient(150deg,#6bffb0,var(--green)); color:#08130c; box-shadow:0 2px 8px rgba(61,220,132,0.3);}
+.ascend-app .cal-cell.y{background:linear-gradient(150deg,#ffe08a,var(--yellow)); color:#2a1e00; box-shadow:0 2px 8px rgba(255,204,77,0.3);}
+.ascend-app .cal-cell.r{background:linear-gradient(150deg,#ff8a8a,var(--red)); color:#fff; box-shadow:0 2px 8px rgba(255,92,92,0.3);}
+.ascend-app .cal-cell.b{background:linear-gradient(150deg,#7fc2ff,var(--blue)); color:#fff; box-shadow:0 2px 8px rgba(61,139,255,0.3);}
+.ascend-app .cal-cell.today{box-shadow:0 0 0 2px var(--accent), 0 0 10px var(--accent-glow);}
+.ascend-app .cal-cell.selected:not(.today){box-shadow:0 0 0 2px var(--text);}
 .ascend-app .legend-row{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px;}
 .ascend-app .legend-popover{padding:9px 10px; background:var(--card2); border:1px solid var(--line); border-radius:var(--radius-sm);
   animation:ascendLegendIn .18s var(--spring);}
@@ -756,8 +867,8 @@ html, body{margin:0; padding:0; height:100%; -webkit-tap-highlight-color:transpa
 `;
 
 /* ============================= SMALL UI HELPERS ============================= */
-function Ring({ pct, size = 64 }) {
-  const stroke = size >= 64 ? 7 : 6;
+function Ring({ pct, size = 64, color }) {
+  const stroke = size >= 64 ? 6 : 5.5;
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, off = c * (1 - clamp(pct, 0, 1));
   return (
     <svg className={`ring ${size >= 64 ? "big" : ""}`} viewBox={`0 0 ${size} ${size}`}>
@@ -766,6 +877,7 @@ function Ring({ pct, size = 64 }) {
         className="fg" cx={size / 2} cy={size / 2} r={r}
         strokeDasharray={c} strokeDashoffset={off}
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        style={color ? { stroke: color, filter: `drop-shadow(0 0 4px color-mix(in srgb, ${color} 55%, transparent))` } : undefined}
       />
       <text x="50%" y="53%" textAnchor="middle" dominantBaseline="middle">
         {Math.round(pct * 100)}%
@@ -790,8 +902,20 @@ function RankProgressRing({ pct, size = 92, stroke = 3, color }) {
 }
 
 /* -- rank badge: core + spinning aura halo + tier-progress ring + rank-up burst -- */
+// Light text on the darker tiers (E, D, C, A), dark text on the bright ones (B, S, S+).
+const RANK_TEXT = [
+  { color: "#ffffff", shadow: "0 1px 3px rgba(0,0,0,0.5)" },
+  { color: "#ffffff", shadow: "0 1px 3px rgba(0,0,0,0.5)" },
+  { color: "#ffffff", shadow: "0 1px 3px rgba(0,0,0,0.45)" },
+  { color: "#06302b", shadow: "0 1px 0 rgba(255,255,255,0.4)" },
+  { color: "#ffffff", shadow: "0 1px 3px rgba(0,0,0,0.45)" },
+  { color: "#3a2a00", shadow: "0 1px 0 rgba(255,255,255,0.45)" },
+  { color: "#4a3500", shadow: "0 1px 0 rgba(255,255,255,0.6)" },
+];
+
 function RankBadge({ rank, score, size = 78 }) {
   const ringSize = size + 14;
+  const rt = RANK_TEXT[rank.tier] || RANK_TEXT[0];
   const prevTierRef = useRef(rank.tier);
   const [burst, setBurst] = useState(false);
 
@@ -816,8 +940,12 @@ function RankBadge({ rank, score, size = 78 }) {
     <div className="rank-badge-wrap" style={{ width: ringSize, height: ringSize }}>
       <div className="rank-aura" style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1] }} />
       <RankProgressRing pct={progress} size={ringSize} color={rank.glow[1]} />
-      <div className="rank-core" style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1], width: size, height: size }}>
-        {rank.name}
+      <div
+        className="rank-core"
+        style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1], "--rc-text": rt.color, "--rc-shadow": rt.shadow, width: size, height: size }}
+      >
+        <span className="rank-cap">RANK</span>
+        <span className="rank-letter">{rank.name}</span>
       </div>
       {burst && (
         <div className="rank-burst" style={{ "--rc1": rank.glow[0], "--rc2": rank.glow[1] }}>
@@ -831,14 +959,79 @@ function RankBadge({ rank, score, size = 78 }) {
   );
 }
 
-function TaskRow({ id, name, xp, done, onToggle, disabled, unit = "XP" }) {
-  return (
-    <div className={`task-row ${done ? "done" : ""} ${disabled ? "locked" : ""}`} onClick={disabled ? undefined : onToggle}>
+function TaskRow({ id, name, xp, done, onToggle, disabled, unit = "XP", swipe = false }) {
+  const SWIPE_THRESHOLD = 80;
+  const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const touch = useRef({ x: 0, y: 0, active: false, moved: false });
+  const suppressClick = useRef(false);
+  const canSwipe = swipe && !disabled;
+
+  const onTouchStart = (e) => {
+    if (!canSwipe) return;
+    const t = e.touches[0];
+    touch.current = { x: t.clientX, y: t.clientY, active: true, moved: false };
+  };
+  const onTouchMove = (e) => {
+    if (!canSwipe || !touch.current.active) return;
+    const t = e.touches[0];
+    const ddx = t.clientX - touch.current.x, ddy = t.clientY - touch.current.y;
+    if (!touch.current.moved) {
+      // Vertical intent: let the page scroll / pull-to-refresh handle it.
+      if (Math.abs(ddy) > 10 && Math.abs(ddy) > Math.abs(ddx)) { touch.current.active = false; return; }
+      if (Math.abs(ddx) > 10 && Math.abs(ddx) > Math.abs(ddy)) { touch.current.moved = true; setDragging(true); }
+      else return;
+    }
+    e.stopPropagation();
+    setDx(clamp(ddx, -140, 140));
+  };
+  const endSwipe = (commit) => {
+    if (!canSwipe) return;
+    const wasMoved = touch.current.moved;
+    touch.current.active = false;
+    touch.current.moved = false;
+    if (wasMoved) {
+      suppressClick.current = true;
+      setTimeout(() => { suppressClick.current = false; }, 350);
+      if (commit && Math.abs(dx) >= SWIPE_THRESHOLD) onToggle();
+    }
+    setDx(0);
+    setDragging(false);
+  };
+  const handleClick = () => {
+    if (disabled || suppressClick.current) return;
+    onToggle();
+  };
+
+  const rowEl = (
+    <div
+      className={`task-row ${done ? "done" : ""} ${disabled ? "locked" : ""} ${swipe ? "swipeable" : ""}`}
+      onClick={handleClick}
+      onTouchStart={swipe ? onTouchStart : undefined}
+      onTouchMove={swipe ? onTouchMove : undefined}
+      onTouchEnd={swipe ? () => endSwipe(true) : undefined}
+      onTouchCancel={swipe ? () => endSwipe(false) : undefined}
+      style={swipe ? { transform: `translateX(${dx}px)`, transition: dragging ? "none" : undefined } : undefined}
+    >
       <div className={`chk ${done ? "on" : ""}`}>
         {done && <Icon name="check" size={13} className="chk-mark" />}
       </div>
       <div className="task-name">{name}</div>
       {xp !== null && <div className="task-xp">{xp} {unit}</div>}
+    </div>
+  );
+  if (!swipe) return rowEl;
+
+  const armed = Math.abs(dx) >= SWIPE_THRESHOLD;
+  return (
+    <div className="task-swipe">
+      <div
+        className={`swipe-bg ${dx > 0 ? "from-left" : dx < 0 ? "from-right" : ""} ${armed ? "armed" : ""}`}
+        style={{ opacity: Math.min(1, Math.abs(dx) / SWIPE_THRESHOLD) }}
+      >
+        <Icon name="check" size={16} /> {done ? "Mark undone" : "Mark done"}
+      </div>
+      {rowEl}
     </div>
   );
 }
@@ -1068,6 +1261,8 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
   const [compactExpanded, setCompactExpanded] = useState({ protein: false, planner: false, recap: false });
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [showLegend, setShowLegend] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calMonth, setCalMonth] = useState(monthStartOf(todayStr()));
 
   const t = todayStr();
   const sel = selectedDate;
@@ -1075,6 +1270,8 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
 
   const currentWeekN = clamp(weekOf(t, CAMPAIGN_START), 1, 33);
   const [viewWeekN, setViewWeekN] = useState(currentWeekN);
+  const [showDoneTasks, setShowDoneTasks] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState({});
 
   const [proteinDraft, setProteinDraft] = useState(rec.protein || "");
   const [chaptersDraft, setChaptersDraft] = useState(rec.chaptersLog || "");
@@ -1118,6 +1315,19 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
   const hardModeAllDone = HARD_MODE_TASKS.every((h) => !!rec.hardMode?.[h.id]);
   const penaltyActive = penaltyLevelForDate(days, config, sel) === 5 && !hardModeAllDone;
   const recapDone = dailyTasks.filter((tk) => !!rec.tasksDone[tk.id]);
+  // Unchecked tasks stay on top; checked ones drop to the bottom (original order kept within each group).
+  // Daily tasks grouped by aspect; each group carries the same colour as its ring.
+  const taskGroups = Object.entries(config.tasks).map(([key, cat], i) => ({
+    key, cat, color: aspectColor(key, i),
+    pending: cat.tasks.filter((tk) => !rec.tasksDone[tk.id]),
+    done: cat.tasks.filter((tk) => !!rec.tasksDone[tk.id]),
+  }));
+  const pendingDailyTasks = taskGroups.flatMap((g) => g.pending);
+  const doneDailyTasks = taskGroups.flatMap((g) => g.done.map((tk) => ({ ...tk, color: g.color })));
+  const sortedHardMode = [
+    ...HARD_MODE_TASKS.filter((h) => !rec.hardMode?.[h.id]),
+    ...HARD_MODE_TASKS.filter((h) => !!rec.hardMode?.[h.id]),
+  ];
   const recapPlan = plans[sel] || "";
 
   // Monday-first day order for the week strip
@@ -1126,6 +1336,24 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
   const openDay = (d) => {
     setSelectedDate(d);
     setCompactExpanded((s) => ({ ...s, recap: true }));
+  };
+
+  // One place that decides a day's dot colour, shared by the week strip and the calendar.
+  const statusCls = (d) => {
+    const dr = days[d];
+    if (d > t) return "";
+    if (dr && dr.leave) return "y";
+    if (dr && dr.leaveOrdinary) return "b";
+    if (dr) return dayXP(days, config.tasks, d) >= config.threshold ? "g" : "r";
+    return d < t ? "r" : "";
+  };
+
+  const toggleCalendar = () => {
+    if (!showCalendar) {
+      setCalMonth(monthStartOf(viewWeekN === currentWeekN ? t : addDays(wStart, 3)));
+      setTimeout(() => document.getElementById("cal-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+    }
+    setShowCalendar(!showCalendar);
   };
 
   return (
@@ -1225,19 +1453,15 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
         </div>
       )}
 
-      <div className="section-title">Week {viewWeekN} Calendar</div>
+      <div className="section-title" style={{ cursor: "pointer" }} onClick={toggleCalendar}>
+        Week {viewWeekN} Calendar
+        <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>{showCalendar ? "tap to hide" : "tap to open"}</span>
+      </div>
       <div className="card week-card">
         {(() => {
           const weekStatuses = Array.from({ length: 7 }).map((_, i) => {
             const d = addDays(wStart, i);
-            const dr = days[d];
-            let cls = "";
-            if (d > t) cls = "";
-            else if (dr && dr.leave) cls = "y";
-            else if (dr && dr.leaveOrdinary) cls = "b";
-            else if (dr) cls = dayXP(days, config.tasks, d) >= config.threshold ? "g" : "r";
-            else cls = d < t ? "r" : "";
-            return { d, cls };
+            return { d, cls: statusCls(d) };
           });
           const elapsedDays = weekStatuses.filter((s) => s.d <= t).length;
           const onTrackDays = weekStatuses.filter((s) => s.cls === "g" || s.cls === "y" || s.cls === "b").length;
@@ -1248,15 +1472,24 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
                   className="navbtn" disabled={viewWeekN <= 1}
                   onClick={() => setViewWeekN((w) => clamp(w - 1, 1, currentWeekN))}
                 ><Icon name="chevron-left" size={17} /></button>
-                <div className="week-nav-mid">
+                <div className="week-nav-mid cal-trigger" onClick={toggleCalendar}>
                   <span>
-                    <b>Week {viewWeekN}</b>
+                    <button
+                      type="button"
+                      className={`week-title-btn ${showCalendar ? "open" : ""}`}
+                      aria-label="Toggle calendar view"
+                      aria-expanded={showCalendar}
+                    >
+                      <Icon name="calendar" size={16} />
+                      <b>Week {viewWeekN}</b>
+                      <Icon name="chevron-down" size={14} />
+                    </button>
                     <button
                       type="button"
                       className={`legend-info-btn ${showLegend ? "active" : ""}`}
                       aria-label="Show dot color legend"
                       aria-expanded={showLegend}
-                      onClick={() => setShowLegend((v) => !v)}
+                      onClick={(e) => { e.stopPropagation(); setShowLegend((v) => !v); }}
                     >
                       i
                     </button>
@@ -1291,6 +1524,50 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
             <span className="legend-item">ring = today (IST)</span>
           </div>
         )}
+        {showCalendar && (() => {
+          const [cy, cm] = calMonth.split("-").map(Number);
+          const firstDow = (new Date(Date.UTC(cy, cm - 1, 1)).getUTCDay() + 6) % 7; // Monday-start
+          const dim = new Date(Date.UTC(cy, cm, 0)).getUTCDate();
+          const cells = [];
+          for (let i = 0; i < firstDow; i++) cells.push(null);
+          for (let n = 1; n <= dim; n++) cells.push(`${cy}-${String(cm).padStart(2, "0")}-${String(n).padStart(2, "0")}`);
+          while (cells.length % 7) cells.push(null);
+          const campaignEnd = addDays(CAMPAIGN_START, CAMPAIGN_DAYS - 1);
+          const minMonth = monthStartOf(CAMPAIGN_START);
+          const maxMonth = monthStartOf(campaignEnd);
+          const label = new Date(Date.UTC(cy, cm - 1, 1)).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
+          return (
+            <div className="cal-panel" id="cal-panel">
+              <div className="cal-head">
+                <button className="navbtn" disabled={calMonth <= minMonth} aria-label="Previous month" onClick={() => setCalMonth(shiftMonth(calMonth, -1))}>
+                  <Icon name="chevron-left" size={17} />
+                </button>
+                <b>{label}</b>
+                <button className="navbtn" disabled={calMonth >= maxMonth} aria-label="Next month" onClick={() => setCalMonth(shiftMonth(calMonth, 1))}>
+                  <Icon name="chevron-right" size={17} />
+                </button>
+              </div>
+              <div className="cal-grid cal-dow">{dow.map((x, i) => <span key={i}>{x}</span>)}</div>
+              <div className="cal-grid">
+                {cells.map((d, i) => {
+                  if (!d) return <div key={`e${i}`} className="cal-cell empty" />;
+                  const inCampaign = d >= CAMPAIGN_START && d <= campaignEnd;
+                  const clickable = inCampaign && d <= t;
+                  const inViewWeek = inCampaign && weekOf(d, CAMPAIGN_START) === viewWeekN;
+                  return (
+                    <button
+                      key={d} type="button" disabled={!clickable}
+                      className={`cal-cell ${inCampaign ? statusCls(d) : "out"} ${d === t ? "today" : ""} ${d === sel ? "selected" : ""} ${inViewWeek ? "in-week" : ""}`}
+                      onClick={() => { openDay(d); setViewWeekN(clamp(weekOf(d, CAMPAIGN_START), 1, currentWeekN)); }}
+                    >
+                      {Number(d.slice(8))}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
         {sel !== t && (
           <div className="day-header" style={{ marginTop: 10 }}>
             <span className="small-muted day-header-note">Viewing &amp; editing {fmtDate(sel)} — everything planned and done that day is in Daily Recap above</span>
@@ -1317,20 +1594,73 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
 
       <div className="section-title">Daily Tasks</div>
       <div className="card">
-        {dailyTasks.map((tk) => (
-          <TaskRow
-            key={tk.id} id={tk.id} name={tk.name} xp={tk.xp}
-            done={!!rec.tasksDone[tk.id]}
-            disabled={!isOwner}
-            onToggle={() => toggleTask(tk.id)}
-          />
-        ))}
+        {taskGroups.map((g) => {
+          const total = g.cat.tasks.length;
+          if (total === 0) return null;
+          const allDone = g.pending.length === 0;
+          const collapsed = allDone || !!collapsedGroups[g.key];
+          return (
+            <div className="aspect-group" key={g.key} style={{ "--ag": g.color }}>
+              <button
+                className={`aspect-head ${allDone ? "complete" : ""} ${collapsed ? "collapsed" : ""}`}
+                onClick={() => { if (!allDone) setCollapsedGroups((c) => ({ ...c, [g.key]: !c[g.key] })); }}
+                aria-expanded={!collapsed}
+              >
+                <span className="ag-bar" />
+                <span className="ag-name">{g.cat.label}</span>
+                <span className="ag-count">
+                  {allDone && <Icon name="check" size={11} />}
+                  {g.done.length}/{total}
+                </span>
+                {!allDone && <Icon name="chevron-down" size={15} />}
+              </button>
+              {!collapsed && g.pending.map((tk) => (
+                <div className="ag-tint" key={tk.id}>
+                  <TaskRow
+                    id={tk.id} name={tk.name} xp={tk.xp}
+                    done={false} swipe
+                    disabled={!isOwner}
+                    onToggle={() => toggleTask(tk.id)}
+                  />
+                </div>
+              ))}
+            </div>
+          );
+        })}
+        {pendingDailyTasks.length === 0 && doneDailyTasks.length > 0 && (
+          <div className="small-muted" style={{ textAlign: "center", padding: "6px 0 2px" }}>All daily tasks complete</div>
+        )}
+        {doneDailyTasks.length > 0 && (
+          <>
+            <button
+              className={`done-toggle ${showDoneTasks ? "open" : ""}`}
+              onClick={() => setShowDoneTasks((v) => !v)} aria-expanded={showDoneTasks}
+            >
+              <span>Completed ({doneDailyTasks.length})</span>
+              <Icon name="chevron-down" size={16} />
+            </button>
+            {showDoneTasks && (
+              <div className="done-list">
+                {doneDailyTasks.map((tk) => (
+                  <div className="ag-tint" key={tk.id} style={{ "--ag": tk.color }}>
+                    <TaskRow
+                      id={tk.id} name={tk.name} xp={tk.xp}
+                      done swipe
+                      disabled={!isOwner}
+                      onToggle={() => toggleTask(tk.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
         {penaltyActive && (
           <>
             <div className="task-group-title">Penalty Tasks (active)</div>
-            {HARD_MODE_TASKS.map((h) => (
+            {sortedHardMode.map((h) => (
               <TaskRow
-                key={h.id} id={h.id} name={h.name} xp={null}
+                key={h.id} id={h.id} name={h.name} xp={null} swipe
                 done={!!rec.hardMode?.[h.id]} disabled={!isOwner}
                 onToggle={() => {
                   if (!isOwner) return;
@@ -1362,17 +1692,17 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
 
       <div className="section-title">Aspects <span className="small-muted" style={{ textTransform: "none", fontWeight: 500 }}>% of total campaign score gained</span></div>
       <div className="aspect-strip">
-        {Object.entries(config.tasks).map(([key, cat]) => {
+        {Object.entries(config.tasks).map(([key, cat], i) => {
           const pct = categoryCampaignPct(days, cat);
           return (
             <div className="aspect-mini" key={key} onClick={() => setOpenAspect((a) => (a === key ? null : key))}>
-              <Ring pct={pct} size={64} />
+              <Ring pct={pct} size={64} color={aspectColor(key, i)} />
               <div className="name"><span className="emoji">{iconEmoji(cat.icon)}</span><span>{cat.label}</span></div>
             </div>
           );
         })}
         <div className="aspect-mini" onClick={() => setOpenAspect((a) => (a === "skills" ? null : "skills"))}>
-          <Ring pct={skillsPct(config, achievements)} size={64} />
+          <Ring pct={skillsPct(config, achievements)} size={64} color={aspectColor("skills")} />
           <div className="name"><span className="emoji">{iconEmoji("graduation")}</span><span>Skills</span></div>
         </div>
       </div>
@@ -1825,7 +2155,6 @@ const TABS = [
   { id: "home", label: "Home", ic: "home" },
   { id: "goals", label: "Milestone & Goals", ic: "trophy" },
   { id: "penalties", label: "Penalties", ic: "shield" },
-  { id: "settings", label: "Settings", ic: "gear" },
 ];
 
 export default function App() {
@@ -2056,6 +2385,15 @@ export default function App() {
           </div>
         ) : (
           <>
+            <div className="topbar">
+              <div className="brand-wrap"><Icon name="mountain" size={20} /><span className="brand">ASCEND</span></div>
+              <button
+                className={`topbar-btn ${activeTab === "settings" ? "active" : ""}`} aria-label="Settings"
+                onClick={() => setActiveTab((t) => (t === "settings" ? "home" : "settings"))}
+              >
+                <Icon name="gear" size={19} />
+              </button>
+            </div>
             <Hud score={score} rank={rank} syncStatus={syncStatus} showBadge={activeTab === "home"} gameCompleted={gameCompleted} />
             <div
               className="scroll" id="page" ref={scrollRef}
