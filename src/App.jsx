@@ -1593,43 +1593,18 @@ function HomeTab({ config, setConfig, achievements, setAchievements, days, setDa
 
       <div className="section-title">Daily Tasks</div>
       <div className="card">
-        {pendingDailyTasks.map((tk) => (
+        {[...pendingDailyTasks.map((tk) => ({ tk, done: false })), ...doneDailyTasks.map((tk) => ({ tk, done: true }))].map(({ tk, done }) => (
           <div className="ag-tint" key={tk.id}>
             <TaskRow
               id={tk.id} name={tk.name} xp={tk.xp}
-              done={false} swipe
+              done={done} swipe
               disabled={!isOwner}
               onToggle={() => toggleTask(tk.id)}
             />
           </div>
         ))}
-        {pendingDailyTasks.length === 0 && doneDailyTasks.length > 0 && (
+        {pendingDailyTasks.length === 0 && (
           <div className="small-muted" style={{ textAlign: "center", padding: "6px 0 2px" }}>All daily tasks complete</div>
-        )}
-        {doneDailyTasks.length > 0 && (
-          <>
-            <button
-              className={`done-toggle ${showDoneTasks ? "open" : ""}`}
-              onClick={() => setShowDoneTasks((v) => !v)} aria-expanded={showDoneTasks}
-            >
-              <span>Completed ({doneDailyTasks.length})</span>
-              <Icon name="chevron-down" size={16} />
-            </button>
-            {showDoneTasks && (
-              <div className="done-list">
-                {doneDailyTasks.map((tk) => (
-                  <div className="ag-tint" key={tk.id} style={{ "--ag": tk.color }}>
-                    <TaskRow
-                      id={tk.id} name={tk.name} xp={tk.xp}
-                      done swipe
-                      disabled={!isOwner}
-                      onToggle={() => toggleTask(tk.id)}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
         )}
         {penaltyActive && (
           <>
